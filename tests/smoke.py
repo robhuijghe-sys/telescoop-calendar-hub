@@ -26,7 +26,7 @@ os.environ["ADMIN_RESET_PASSWORD"] = ""
 os.environ["ENABLE_ADMIN_RECOVERY_LOG"] = "false"
 
 from fastapi.testclient import TestClient
-from app.entry import app
+from app.entry import app, RECOVERY_LINK_HOURS
 import app.main as core
 
 
@@ -34,6 +34,8 @@ def check(condition, message):
     if not condition:
         raise AssertionError(message)
 
+
+check(RECOVERY_LINK_HOURS == 24, "production recovery link validity must remain 24 hours")
 
 with TestClient(app) as client:
     r = client.get("/", follow_redirects=False)
@@ -62,12 +64,30 @@ with TestClient(app) as client:
     r = client.get("/health")
     check(r.status_code == 200 and r.json().get("ok") is True, "healthcheck must be green")
 
+    # Inactive recovery links must produce a normal HTML page, never FastAPI JSON.
+    client.cookies.clear()
+    r = client.get("/recover?token=inactive-token", follow_redirects=False)
+    check(r.status_code == 403, "inactive recovery link must be rejected")
+    check("Herstellink niet actief" in r.text and '"detail"' not in r.text, "inactive recovery link must render friendly HTML")
+
+    # Expired recovery links must also render friendly HTML and clear themselves.
+    expired_token = "build-time-expired-recovery-token"
+    core.set_setting("admin_recovery_token_hash", hashlib.sha256(expired_token.encode()).hexdigest())
+    core.set_setting(
+        "admin_recovery_expires_at",
+        (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+    )
+    r = client.get(f"/recover?token={expired_token}", follow_redirects=False)
+    check(r.status_code == 403, "expired recovery link must be rejected")
+    check("Herstellink verlopen" in r.text and '"detail"' not in r.text, "expired recovery link must render friendly HTML")
+    check(core.setting("admin_recovery_token_hash") == "", "expired recovery token must be cleared")
+
     # Exercise the complete one-time recovery flow.
     recovery_token = "build-time-smoke-recovery-token"
     core.set_setting("admin_recovery_token_hash", hashlib.sha256(recovery_token.encode()).hexdigest())
     core.set_setting(
         "admin_recovery_expires_at",
-        (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
     )
     client.cookies.clear()
 
@@ -85,10 +105,11 @@ with TestClient(app) as client:
     )
     check(r.status_code == 303 and r.headers.get("location") == "/", "password recovery must return to dashboard")
 
-    # Token must be single-use.
+    # Token must be single-use and reuse must stay friendly HTML.
     client.cookies.clear()
     r = client.get(f"/recover?token={recovery_token}", follow_redirects=False)
     check(r.status_code == 403, "recovery token must be single-use")
+    check("Herstellink niet actief" in r.text and '"detail"' not in r.text, "used recovery link must render friendly HTML")
 
     r = client.post(
         "/login",
