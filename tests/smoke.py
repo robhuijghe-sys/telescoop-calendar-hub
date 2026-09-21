@@ -1,7 +1,13 @@
 import hashlib
 import os
+import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
+
+# Ensure repository root is importable when this file is executed directly.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 # Isolated build-time test environment: never touches the Railway volume.
 tmpdb = os.path.join(tempfile.gettempdir(), "tch-smoke.db")
