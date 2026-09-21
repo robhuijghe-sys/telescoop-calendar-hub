@@ -5,6 +5,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN python tests/smoke.py
+RUN python tests/calendar_smoke.py
 RUN mkdir -p /data
 EXPOSE 8000
-CMD ["uvicorn", "app.entry:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.calendar_dynamic:app", "--host", "0.0.0.0", "--port", "8000"]
