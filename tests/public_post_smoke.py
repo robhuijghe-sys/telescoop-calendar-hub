@@ -31,6 +31,12 @@ with TestClient(app) as client:
     assert "Geen login nodig" in r.text
     assert "Kalenderitem toevoegen" in r.text
 
+    r = client.get("/smartschool-calendar", follow_redirects=False)
+    assert r.status_code == 200
+    assert '<meta http-equiv="refresh" content="30">' in r.text
+    assert "@media (max-width:560px)" in r.text
+    assert r.headers.get("cache-control", "").startswith("no-store")
+
     r = client.post(
         "/public/interpret",
         data={"prompt": "Voeg op 12 oktober 2026 om 15.30 teamvergadering toe"},
@@ -65,6 +71,11 @@ with TestClient(app) as client:
     assert row["status"] == "published"
     assert row["visible_in_embed"] == 1
     assert row["category"] == "personeel"
+
+    r = client.get("/smartschool-calendar", follow_redirects=False)
+    assert r.status_code == 200
+    assert "Teamvergadering" in r.text
+    assert "#C614A1" in r.text
 
     r = client.get("/?added=1")
     assert r.status_code == 200
