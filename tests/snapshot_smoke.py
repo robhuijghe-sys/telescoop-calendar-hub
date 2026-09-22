@@ -39,6 +39,8 @@ with TestClient(app) as client:
     con = core.db(); now = core.now_iso()
     con.execute("INSERT INTO events(title,description,start_at,end_at,all_day,location,audience,category,status,source_prompt,visible_in_embed,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         ("Nieuwe teamvergadering", "", "2026-09-23T13:30:00+00:00", "2026-09-23T14:30:00+00:00", 0, "", "[]", "personeel", "published", "", 1, 0, now, now))
+    con.execute("INSERT INTO events(title,description,start_at,end_at,all_day,location,audience,category,status,source_prompt,visible_in_embed,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("Kerstmis", "", "2026-12-25T11:00:00+00:00", "2026-12-25T12:00:00+00:00", 1, "", "[]", "uitstap", "published", "", 1, 0, now, now))
     con.commit(); con.close()
     r = client.get("/smartschool-calendar")
     assert r.status_code == 200
@@ -48,6 +50,9 @@ with TestClient(app) as client:
     assert 'http-equiv="refresh" content="30"' in r.text
     assert "@media(max-width:560px)" in r.text
     assert r.headers.get("cache-control", "").startswith("no-store")
+    assert 'class="event-cell live-only"' in r.text
+    assert ".event-cell.live-only{vertical-align:middle}" in r.text
+    assert ">Kerstmis</span>" in r.text or "Kerstmis" in r.text
 
 print("TCH_SNAPSHOT_SMOKE_TEST=PASS")
 for p in (tmpdb, tmpsnap):
