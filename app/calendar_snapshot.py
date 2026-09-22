@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import gzip
 import html
 import json
 import os
@@ -10,9 +12,22 @@ import app.main as core
 from app.calendar_dynamic import MONTH_NAMES, MONTH_PALETTES, SEASONS, WEEKDAYS, _event_line, _top_links_html
 
 SNAPSHOT_PATH = Path(os.getenv("CALENDAR_SNAPSHOT_PATH", "/data/calendar_snapshot.json"))
+SNAPSHOT_GZ_B64 = os.getenv("CALENDAR_SNAPSHOT_GZ_B64", "")
+
+
+def _ensure_snapshot_file():
+    if SNAPSHOT_PATH.exists() or not SNAPSHOT_GZ_B64:
+        return
+    SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    raw = gzip.decompress(base64.b64decode(SNAPSHOT_GZ_B64.encode("ascii")))
+    parsed = json.loads(raw.decode("utf-8"))
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("entries"), list):
+        raise RuntimeError("Invalid calendar snapshot payload")
+    SNAPSHOT_PATH.write_bytes(raw)
 
 
 def _load_snapshot():
+    _ensure_snapshot_file()
     if not SNAPSHOT_PATH.exists():
         return {"focus": {}, "entries": []}
     try:
@@ -44,7 +59,6 @@ def render_snapshot_calendar() -> str:
     school_start_year = today.year if today.month >= 8 else today.year - 1
     end_year, end_month = school_start_year + 1, 8
 
-    # Merge all known dates, but render from the current month onward.
     all_dates = set(base_by_date) | set(dyn)
     parsed_dates = []
     for ds in all_dates:
