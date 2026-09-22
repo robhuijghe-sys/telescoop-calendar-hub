@@ -2,7 +2,7 @@ from fastapi.responses import HTMLResponse
 
 from app.calendar_snapshot import render_snapshot_calendar
 from app.public_calendar import app, _remove_route
-import app.parser_fix  # noqa: F401 - patches core.parse_instruction for public calendar input
+from app import parser_fix as _parser_fix  # noqa: F401 - patches core.parse_instruction
 
 # Replace the database-only renderer with the migrated full calendar + live additions.
 _remove_route("/smartschool-calendar", "GET")
