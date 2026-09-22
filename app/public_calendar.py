@@ -8,7 +8,7 @@ from fastapi import Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 import app.main as core
-from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
+from app.calendar_dynamic import CATEGORY_COLORS, _smartschool_document, _times_to_utc, infer_category
 from app.calendar_live import app
 
 
@@ -60,10 +60,28 @@ def _public_form(added: bool = False):
 
 @app.get("/", response_class=HTMLResponse)
 def public_home(request: Request, added: int = 0):
-    # Logged-in managers go straight to the management list; everyone else gets the public posting form.
     if core.current_user(request):
         return RedirectResponse("/events", 303)
     return HTMLResponse(public_page("Kalenderitem toevoegen", _public_form(bool(added))))
+
+
+@app.get("/smartschool-calendar", response_class=HTMLResponse)
+def public_smartschool_calendar():
+    # Stable public URL intended to be embedded once in the Smartschool news message.
+    # The external document refreshes itself every 30 seconds, so the Smartschool HTML never needs to change.
+    doc = _smartschool_document().replace(
+        "<head>",
+        '<head><meta http-equiv="refresh" content="30">',
+        1,
+    )
+    return HTMLResponse(
+        doc,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.post("/public/interpret", response_class=HTMLResponse)
