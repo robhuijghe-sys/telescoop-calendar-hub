@@ -2,6 +2,20 @@
 
 Een zelfstandige Cloudflare Worker met D1. Dit is de technische basis voor de kalender in het bestaande Smartschool-nieuwsbericht. De aangeleverde HTML is verwerkt in een gecontroleerde import; deze branch is nog geen vervanging voor de live Railway-kalender.
 
+## Publiceren in je browser (aanbevolen)
+
+[Kalender publiceren](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Frobhuijghe-sys%2Ftelescoop-calendar-hub%2Ftree%2Fcalendar-browser%2Fcloudflare)
+
+Deze officiële Cloudflare-route vereist geen lokale installatie. Open het persoonlijke `Kalender-start.html`, kopieer de beheersleutel en gebruik de publicatieknop. Cloudflare kan vragen GitHub te verbinden; geef de nieuw te maken repository een vrije naam. Gebruik het Workers Free-abonnement en plak de sleutel bij `EDITOR_TOKEN`. De D1-binding wordt aangemaakt en het schema wordt vóór publicatie toegepast via `npm run deploy`. De app blijft op de inbegrepen workers.dev-host.
+
+Plak het daadwerkelijk gepubliceerde adres in het startbestand. Open de getoonde overzetlink, selecteer hetzelfde startbestand en kies **Kalender overzetten**. Daarna geeft de beheerpagina de juiste Smartschool-code. Het startbestand is privé en staat buiten git. De publieke repository bevat uitsluitend hashes van de goedgekeurde importdelen. De import-API accepteert geen andere SQL, vereist de beheersleutel, begrenst verzoeken en verwerkt maximaal 35 statements per deel. Elk deel en zijn hervatmarker vormen één transactie; herhalen maakt geen dubbele regels en herstelt geen verwijderingen.
+
+Voor het opnieuw maken van een startbestand uit de gecontroleerde SQL-export: `node scripts/browser-package.mjs`. Deze schrijft het persoonlijke HTML-bestand buiten git en de publieke hashmanifest in `src/import-manifest.json`. Synchroniseer de manifest altijd met de bijbehorende gepubliceerde code. Gebruik dezelfde bewaarde sleutel bij herhalen.
+
+Controle van deze route: 25 tests geslaagd, inclusief hervatten na netwerkfouten, weigeren van aangepaste importbestanden, browsergedrag en vergelijking van alle 401 regels, 7 links en 152 kalenderdatums met de rechtstreekse SQL-import. Wrangler dry-run en de echte lokale workerd/D1-run slagen: browserimport van alle 401 regels, geweigerde onbevoegde import (401), kalender (200), lettertype (200) en ongewijzigde kalender (304). De daadwerkelijke Cloudflare-aanmelding en publicatie door de eigenaar blijven nodig; de knop is geen bewijs van een live kalender.
+
+Documentatie: https://developers.cloudflare.com/workers/platform/deploy-buttons/
+
 ## Gedrag
 
 - `/smartschool-calendar` is de vaste, in een iframe bruikbare leesweergave. De HTML laadt zichzelf na 1800 seconden opnieuw. Bezoekers hoeven daarvoor niet opnieuw aan te melden.
@@ -15,13 +29,13 @@ Een zelfstandige Cloudflare Worker met D1. Dit is de technische basis voor de ka
 
 De leesweergave heeft, net als de huidige werkende route, geen inlogscherm. Iedereen met de publieke URL kan de getoonde gegevens bekijken. Plaats er daarom geen gegevens die uitsluitend binnen Smartschool zichtbaar mogen zijn. Een Smartschool-iframe geeft op zichzelf geen toegangscontrole aan de externe pagina.
 
-De beheersleutel heeft minimaal 32 willekeurige tekens; gebruik bij voorkeur 32 random bytes als 64 hextekens. Alleen de SHA-256-hash staat als Cloudflare-secret `EDITOR_TOKEN_SHA256`. Het beheer werkt zonder gebruikerslogin maar de gedeelde sleutel geeft zowel toevoeg- als verwijderrecht. Wie individuele rechten en namen in het auditlog wil, kan later meerdere editor-sleutels krijgen. Geef de beheerlink nooit mee in de publieke kalenderpagina.
+De beheersleutel heeft minimaal 32 willekeurige tekens; gebruik bij voorkeur 32 random bytes als 64 hextekens. De browserroute bewaart de sleutel als Cloudflare-secret `EDITOR_TOKEN`; de lokale publicatieroute gebruikt alleen de hash als `EDITOR_TOKEN_SHA256`. Beide worden via een SHA-256-vergelijking gecontroleerd. Het beheer werkt zonder gebruikerslogin maar de gedeelde sleutel geeft zowel toevoeg- als verwijderrecht. Wie individuele rechten en namen in het auditlog wil, kan later meerdere editor-sleutels krijgen. Geef de beheerlink nooit mee in de publieke kalenderpagina.
 
 De code bevat geen kalenderinhoud of sleutels. De bron en gegenereerde import blijven buiten de publieke repository. De database wordt bij ingebruikname gevuld.
 
 ## Voorbereiding van een eigen gratis Cloudflare-account
 
-1. Maak een D1-database `telescoop-kalender` en vervang `REPLACE_WITH_D1_DATABASE_ID` in `wrangler.jsonc` door het echte database-ID.
+1. Maak een D1-database `telescoop-kalender` en voeg het echte `database_id` toe aan de D1-binding in `wrangler.jsonc`.
 2. Voer `schema.sql` uit tegen die database (`npx wrangler d1 execute telescoop-kalender --remote --file=./schema.sql`).
 3. Maak lokaal een lange willekeurige sleutel. Zet uitsluitend de SHA-256-hash als secret met `npx wrangler secret put EDITOR_TOKEN_SHA256`. Bewaar de oorspronkelijke sleutel veilig voor de persoonlijke beheerlink.
 4. Publiceer met `npx wrangler deploy` vanuit deze map. De inbegrepen `*.workers.dev`-naam vereist geen apart domein. Bewaar de bestaande Railway-versie tijdens de controle.

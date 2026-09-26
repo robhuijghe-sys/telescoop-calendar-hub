@@ -3,8 +3,19 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "deploy": "wrangler d1 execute DB --remote --file=schema.sql --yes && wrangler deploy",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check src/worker.mjs && node --check src/parser.mjs && node --check src/pages.mjs && node --check src/links.mjs && node --check src/read-calendar.mjs && node --check src/embed.mjs && node --check scripts/import-html.mjs && node --check scripts/publish.mjs"
+    "check": "node --check src/worker.mjs && node --check src/parser.mjs && node --check src/pages.mjs && node --check src/links.mjs && node --check src/read-calendar.mjs && node --check src/embed.mjs && node --check scripts/import-html.mjs && node --check scripts/publish.mjs && node --check src/browser-import.mjs && node --check scripts/browser-package.mjs"
+  },
+  "cloudflare": {
+    "bindings": {
+      "EDITOR_TOKEN": {
+        "description": "Plak de persoonlijke beheersleutel uit je bestand Kalender-start.html (64 tekens). Bewaar dit startbestand: hiermee open je later het kalenderbeheer."
+      },
+      "DB": {
+        "description": "Bewaar kalenderregels, verwijslinks en wijzigingen in deze gratis D1-databank."
+      }
+    }
   },
   "devDependencies": {
     "linkedom": "0.18.13",

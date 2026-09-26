@@ -2,6 +2,7 @@ import {serveCalendar} from './read-calendar.mjs';
 import {manageLinks} from './links.mjs';
 import {parseInstruction} from './parser.mjs';
 import {CATEGORIES, renderManager} from './pages.mjs';
+import {browserImport,renderImport} from './browser-import.mjs';
 
 const json = (data, status=200) => new Response(JSON.stringify(data), {status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
 export const html = (data, isCalendar=false) => new Response(data, {headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow',
@@ -9,7 +10,10 @@ export const html = (data, isCalendar=false) => new Response(data, {headers:{'Co
   'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; ${isCalendar ? "script-src 'none';" : "script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none';"} font-src 'self'; img-src 'self' https://telescoop-sgr8.smartschool.be; base-uri 'none'; form-action 'self'`}});
 
 async function authorized(request, env) {
-  const expected = env.EDITOR_TOKEN_SHA256;
+  const digest = async token => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))),b=>b.toString(16).padStart(2,'0')).join('');
+  // The browser deployment asks for a secret directly; the existing local
+  // publisher may continue configuring its SHA-256 hash instead.
+  const expected = env.EDITOR_TOKEN_SHA256 || (/^[A-Za-z0-9_-]{32,128}$/.test(env.EDITOR_TOKEN || '') ? await digest(env.EDITOR_TOKEN) : '');
   const bearer = request.headers.get('Authorization')?.match(/^Bearer ([A-Za-z0-9_-]{32,128})$/)?.[1];
   if (!expected || !/^[a-f0-9]{64}$/i.test(expected) || !bearer) return false;
   const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(bearer)));
@@ -73,8 +77,10 @@ export default {
       }
       if (['GET','HEAD'].includes(method) && path==='/smartschool-calendar') return await serveCalendar(request,env,ctx,html);
       if (method==='GET' && (path==='/beheer' || path==='/')) return html(renderManager({origin:url.origin}));
+      if (method==='GET' && path==='/overzetten') return html(renderImport());
       if (!path.startsWith('/api/manage/')) return json({error:'Niet gevonden.'},404);
       if (!(await authorized(request,env))) return json({error:'Ongeldige of ontbrekende beheersleutel.'},401);
+      if(path==='/api/manage/import' && ['GET','POST'].includes(method)) return json(await browserImport(env.DB,method==='POST' ? await payload(request) : undefined));
       if(path==='/api/manage/links' || path.startsWith('/api/manage/links/')) {
         const result=await manageLinks(request,env.DB,path,payload);
         if(result?.conflict) return json({error:'Deze link is ondertussen gewijzigd. Vernieuw de lijst en kies bij deze link opnieuw Aanpassen om de nieuwste versie te bekijken.'},409);
