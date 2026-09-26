@@ -1,0 +1,9 @@
+{
+  "name": "telescoop-calendar-free",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check src/worker.mjs && node --check src/parser.mjs && node --check src/pages.mjs"
+  }
+}
