@@ -23,6 +23,7 @@ import app.main as core
 import app.calendar_snapshot as snapshot
 import app.public_calendar as public
 import app.delete_flow as deletion
+from app.outing_format import outing_label, bulk_outing
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 
 BUILD = 'railway-editor-20260926-v2'
@@ -221,7 +222,7 @@ async def editor_headers(request: Request, call_next):
         if len(await request.body()) > 65536:
             return Response('Invoer te groot.', status_code=413)
     response = await call_next(request)
-    if request.method == 'POST' and request.url.path in ('/public/create', '/kalender-toevoegen') and response.status_code == 303:
+    if request.method == 'POST' and request.url.path in ('/public/create', '/kalender-toevoegen', '/kalender-uitstap') and response.status_code == 303:
         response.headers['Location'] = '/opgeslagen'
     if request.url.path.startswith('/calendar-fonts/'):
         response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
@@ -296,7 +297,7 @@ def audit(con, action, data):
 
 
 @app.post('/kalender-toevoegen')
-def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = Form("0")):
+def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = Form("0"), category: str = Form("auto")):
     valid_date(date)
     rows = [line.strip() for line in lines.splitlines() if line.strip()]
     if not rows or len(rows) > 100 or any(len(line) > 1000 for line in rows):
@@ -304,7 +305,7 @@ def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = F
     if structured == '1':
         normalized = []
         for number, line in enumerate(rows, 1):
-            parts = re.split(r':\s+|\s+-\s+', line, maxsplit=2)
+            parts = re.split(r':\s+|\s+-\s+|,\s*', line, maxsplit=2)
             if len(parts) != 3 or not all(p.strip() for p in parts):
                 raise HTTPException(400, f'Regel {number}: gebruik dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld VM: K3: uitstap naar plantentuin. Er is niets opgeslagen.')
             moment, group, activity = [p.strip() for p in parts]
@@ -313,6 +314,7 @@ def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = F
             moment = {'voormiddag': 'VM', 'namiddag': 'NM', 'vm': 'VM', 'nm': 'NM'}.get(moment.lower(), moment)
             normalized.append(f'{moment}: {group.upper()}: {activity}')
         rows = normalized
+    rows = [bulk_outing(line) if infer_category(line, category) == 'uitstap' else line for line in rows]
     con = core.db()
     try:
         con.execute('BEGIN IMMEDIATE')
@@ -321,7 +323,7 @@ def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = F
         for line in rows:
             if con.execute('SELECT id FROM editor_lines WHERE deleted=0 AND date_local=? AND title=?', (date, line)).fetchone():
                 continue
-            color = CATEGORY_COLORS[infer_category(line)][0]
+            color = CATEGORY_COLORS[infer_category(line, category) if category != 'auto' else ('uitstap' if re.match(r'^(?:VM|NM|hele dag|\d{2}:\d{2} tot \d{2}:\d{2}), ', line) else infer_category(line))][0]
             con.execute('INSERT INTO editor_lines(date_local,body_html,title) VALUES(?,?,?)', (date, f'<span style="color:{color}">{esc(line)}</span>', line))
             added += 1
         audit(con, 'calendar.bulk_added', {'date': date, 'count': added})
@@ -358,7 +360,36 @@ def interpret(prompt: str = Form(...)):
         from urllib.parse import urlencode
         parsed, query = deletion._delete_payload(prompt)
         return RedirectResponse('/kalender-wijzigen?' + urlencode({'q': query, 'date': parsed.get('date') or ''}), 303)
+    if infer_category(prompt) == 'uitstap':
+        return outing_preview(prompt)
     return original_interpret(prompt)
+
+
+def outing_preview(prompt):
+    parsed = core.parse_instruction(prompt)
+    match = re.search(r'\b[KL][1-6](?:\s*(?:en|/|\+)\s*[KL]?[1-6])*\b', prompt, re.I)
+    group = match.group(0).upper() if match else ''
+    destination = re.search(r'\bnaar\s+(.+?)(?=\s+toe\b|\s+in de\s+(?:VM|NM)|$)', prompt, re.I)
+    location = destination.group(1).strip(' .') if destination else ''
+    if re.search(r'\b(?:VM|voormiddag)\b', prompt, re.I):
+        moment = 'VM'
+    elif re.search(r'\b(?:NM|namiddag)\b', prompt, re.I):
+        moment = 'NM'
+    elif re.search(r'\bhele dag\b', prompt, re.I):
+        moment = 'hele dag'
+    elif parsed.get('start_time'):
+        moment = 'uren'
+    else:
+        moment = ''
+    options = ''.join(f'<option value="{v}" {"selected" if v == moment else ""}>{label}</option>' for v,label in [('', 'Kies een dagdeel of uren'), ('VM','VM'), ('NM','NM'), ('hele dag','hele dag'), ('uren','Beginuur tot einduur')])
+    body = f'''<div class="card"><h2>Controleer de uitstap</h2><p>Notatie: uur tot uur (of VM/NM/hele dag), klas, locatie uitstap. Uitstappen krijgen automatisch oranje.</p><form method="post" action="/kalender-uitstap"><label>Datum</label><input name="date" type="date" value="{esc(parsed.get('date') or '', quote=True)}" required><label>Dagdeel of uren</label><select name="moment" required>{options}</select><label>Beginuur (bij uren)</label><input name="start" type="time" value="{esc(parsed.get('start_time') or '', quote=True)}"><label>Einduur (bij uren)</label><input name="end" type="time" value="{esc(parsed.get('end_time') or '', quote=True)}"><label>Klasgroep</label><input name="group" value="{esc(group, quote=True)}" required><label>Locatie uitstap</label><input name="location" value="{esc(location, quote=True)}" required><p><button>Uitstap toevoegen</button></p></form></div>'''
+    return HTMLResponse(page('Uitstap toevoegen', body))
+
+
+@app.post('/kalender-uitstap')
+def add_outing(date: str = Form(...), moment: str = Form(...), group: str = Form(...), location: str = Form(...), start: str = Form(''), end: str = Form('')):
+    line = outing_label(moment, group, location, start, end)
+    return add_lines(date, line, '0', 'uitstap')
 
 
 @app.post('/public/delete')

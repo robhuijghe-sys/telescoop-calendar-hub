@@ -73,7 +73,7 @@ with TestClient(app) as client:
     assert 'placeholder="VM: K3: uitstap naar plantentuin"' in client.get('/').text
     assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'vm - k3 - uitstap naar plantentuin\n09:30: L2: bibliotheek'}).status_code == 303
     assert len(rows_all()) == before_count + 2
-    assert any(r['title'] == 'VM: K3: uitstap naar plantentuin' for r in rows_all())
+    assert any(r['title'] == 'VM, K3, plantentuin' for r in rows_all())
     assert any(r['title'] == '09:30: L2: bibliotheek' for r in rows_all())
     assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'NM: L1: klas\nOnvolledige regel'}).status_code == 400
     assert len(rows_all()) == before_count + 2
@@ -93,6 +93,18 @@ with TestClient(app) as client:
     assert infer_category('VM: L2: uitstap naar plantentuin Meise') == 'uitstap'
     assert infer_category('Leerkracht afwezig') == 'waarschuwing'
     assert infer_category('Materiaal klaarleggen') == 'algemeen'
+
+    preview = client.post('/public/interpret', data={'prompt': 'Voeg op 3 juni uitstap L2 naar plantentuin Meise toe in de VM.'})
+    assert 'action="/kalender-uitstap"' in preview.text and 'value="L2"' in preview.text and 'value="plantentuin Meise"' in preview.text
+    response = client.post('/kalender-uitstap', data={'date':'2027-06-03','moment':'VM','group':'L2','location':'plantentuin Meise'}, follow_redirects=False)
+    assert response.status_code == 303 and response.headers['location'] == '/opgeslagen'
+    assert any(r['title']=='VM, L2, plantentuin Meise' for r in rows_all())
+    assert client.post('/kalender-uitstap', data={'date':'2027-06-04','moment':'uren','group':'L2','location':'Meise','start':'09:00','end':'12:00'}, follow_redirects=False).status_code == 303
+    assert any(r['title']=='09:00 tot 12:00, L2, Meise' for r in rows_all())
+    assert client.post('/kalender-uitstap', data={'date':'2027-06-04','moment':'uren','group':'L2','location':'Meise','start':'09:00','end':''}).status_code == 400
+    con=core.db()
+    assert '#F09009' in con.execute("SELECT body_html FROM editor_lines WHERE title='VM, L2, plantentuin Meise'").fetchone()[0]
+    con.close()
 
 print('TCH_SIMPLE_EDITOR_SMOKE_TEST=PASS')
 temp.cleanup()
