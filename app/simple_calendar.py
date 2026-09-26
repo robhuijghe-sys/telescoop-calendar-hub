@@ -264,7 +264,7 @@ def calendar(request: Request):
 @app.get('/')
 def home(saved: int = 0, added: int = 0):
     message = '<p class="ok">Opgeslagen. De kalender toont je wijziging bij de volgende opening; openstaande kalenders verversen binnen twee uur.</p>' if saved or added else ''
-    body = '''<div class="card"><h2>Meerdere regels toevoegen</h2><p>Kies één datum en zet elke activiteit of vervanging op een nieuwe regel. Alles wordt in één keer opgeslagen. Elke regel blijft apart aanpasbaar en verwijderbaar.</p><form method="post" action="/kalender-toevoegen"><label>Datum</label><input type="date" name="date" required><label>Activiteiten en vervangingen</label><textarea name="lines" rows="9" maxlength="20000" placeholder="Lien afwezig&#10;1ste uur: Jorge neemt LO over&#10;2de uur: Veronica begeleidt L1" required></textarea><p><button>Alle regels toevoegen</button></p></form></div><details class="card"><summary>Een activiteit in gewone taal invoeren</summary><form method="post" action="/public/interpret"><label>Opdracht</label><textarea name="prompt" maxlength="2000" placeholder="Voeg op 6 oktober om 15.30 teamvergadering toe" required></textarea><p><button>Interpreteren en controleren</button></p></form></details>'''
+    body = '''<div class="card"><h2>Meerdere regels toevoegen</h2><p>Kies één datum. Gebruik voor elke regel: dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld VM: K3: uitstap naar plantentuin. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label>Datum</label><input type="date" name="date" required><label>Activiteiten en vervangingen</label><textarea name="lines" rows="9" maxlength="20000" placeholder="VM: K3: uitstap naar plantentuin" required></textarea><p><button>Alle regels toevoegen</button></p></form></div><details class="card"><summary>Een activiteit in gewone taal invoeren</summary><form method="post" action="/public/interpret"><label>Opdracht</label><textarea name="prompt" maxlength="2000" placeholder="Voeg op 6 oktober om 15.30 teamvergadering toe" required></textarea><p><button>Interpreteren en controleren</button></p></form></details>'''
     return HTMLResponse(page('Activiteiten toevoegen', message + body))
 
 
@@ -282,11 +282,23 @@ def audit(con, action, data):
 
 
 @app.post('/kalender-toevoegen')
-def add_lines(date: str = Form(...), lines: str = Form(...)):
+def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = Form("0")):
     valid_date(date)
     rows = [line.strip() for line in lines.splitlines() if line.strip()]
     if not rows or len(rows) > 100 or any(len(line) > 1000 for line in rows):
         raise HTTPException(400, 'Gebruik 1 tot 100 regels, met maximaal 1000 tekens per regel.')
+    if structured == '1':
+        normalized = []
+        for number, line in enumerate(rows, 1):
+            parts = re.split(r':\s+|\s+-\s+', line, maxsplit=2)
+            if len(parts) != 3 or not all(p.strip() for p in parts):
+                raise HTTPException(400, f'Regel {number}: gebruik dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld VM: K3: uitstap naar plantentuin. Er is niets opgeslagen.')
+            moment, group, activity = [p.strip() for p in parts]
+            if not re.fullmatch(r'(?:VM|NM|voormiddag|namiddag|hele dag|\d{1,2}(?:[u:.h]\d{0,2})?(?:\s*(?:-|tot)\s*\d{1,2}(?:[u:.h]\d{0,2})?)?|\d+(?:ste|de) uur)', moment, re.IGNORECASE):
+                raise HTTPException(400, f'Regel {number}: begin met VM, NM, hele dag of een uur, bijvoorbeeld 09:30. Er is niets opgeslagen.')
+            moment = {'voormiddag': 'VM', 'namiddag': 'NM', 'vm': 'VM', 'nm': 'NM'}.get(moment.lower(), moment)
+            normalized.append(f'{moment}: {group.upper()}: {activity}')
+        rows = normalized
     con = core.db()
     try:
         con.execute('BEGIN IMMEDIATE')

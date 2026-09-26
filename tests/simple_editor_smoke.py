@@ -69,5 +69,14 @@ with TestClient(app) as client:
     assert client.post('/kalender-toevoegen', data={'date': '2026-10-02', 'lines': 'Cross site'}, headers={'Origin': 'https://unrelated.example'}).status_code == 403
     assert '<strong>' in split_lines('<span>Text <strong>bold</strong></span><br>next')[0]
 
+    before_count = len(rows_all())
+    assert 'placeholder="VM: K3: uitstap naar plantentuin"' in client.get('/').text
+    assert client.post('/kalender-toevoegen', data={'date': '2026-10-08', 'structured': '1', 'lines': 'vm - k3 - uitstap naar plantentuin\n09:30: L2: bibliotheek'}).status_code == 200
+    assert len(rows_all()) == before_count + 2
+    assert any(r['title'] == 'VM: K3: uitstap naar plantentuin' for r in rows_all())
+    assert any(r['title'] == '09:30: L2: bibliotheek' for r in rows_all())
+    assert client.post('/kalender-toevoegen', data={'date': '2026-10-08', 'structured': '1', 'lines': 'NM: L1: klas\nOnvolledige regel'}).status_code == 400
+    assert len(rows_all()) == before_count + 2
+
 print('TCH_SIMPLE_EDITOR_SMOKE_TEST=PASS')
 temp.cleanup()
