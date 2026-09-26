@@ -33,3 +33,21 @@ test('beheerscherm: aanmaken, zoekopdracht, annuleren en bevestigen van verwijde
   offline=true;get('prompt').value='Voeg morgen overleg toe';await get('interpret').onclick();
   assert.match(get('notice').textContent,/Verbinding verbroken/);assert.equal(get('interpret').disabled,false);
 });
+
+test('links beheren: toevoegen, aanpassen, annuleren, verwijderen en netwerkfout',async()=>{
+  const {env,sqlite}=harness(),html=renderManager(),{document}=parseHTML(html),get=id=>document.getElementById(id);
+  let accept=false,offline=false;
+  runInNewContext(html.match(/<script type="module">([\s\S]*?)<\/script>/)[1],{document,URLSearchParams,location:{hash:'',pathname:'/beheer'},history:{replaceState(){}},sessionStorage:{getItem(){return null;},setItem(){}},confirm:()=>accept,fetch:(path,options)=>{if(offline)throw new Error('Offline');return worker.fetch(new Request('https://example.workers.dev'+path,options),env);}});
+  get('key').value='a'.repeat(64);get('useKey').onclick();
+  for(let i=0;i<50 && get('app').hidden;i++) await new Promise(r=>setTimeout(r,2));
+  const submit=()=>get('linkForm').onsubmit({preventDefault(){}});
+  get('linkDescription').value='Lesmateriaal';get('linkUrl').value='/deeplink/123';await submit();
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM calendar_links').get().n,1);
+  get('links').querySelector('button').onclick();get('linkDescription').value='Nieuw';get('linkUrl').value='https://example.org/test';await submit();
+  assert.equal(sqlite.prepare('SELECT description FROM calendar_links').get().description,'Nieuw');
+  get('links').querySelector('button').onclick();get('linkCancel').onclick();assert.equal(get('linkDescription').value,'');
+  await get('links').querySelector('.danger').onclick();assert.equal(sqlite.prepare('SELECT deleted_at FROM calendar_links').get().deleted_at,null);
+  accept=true;await get('links').querySelector('.danger').onclick();assert.ok(sqlite.prepare('SELECT deleted_at FROM calendar_links').get().deleted_at);
+  offline=true;get('linkDescription').value='Bewaard concept';get('linkUrl').value='https://example.org';await submit();
+  assert.equal(get('linkDescription').value,'Bewaard concept');assert.match(get('notice').textContent,/Offline/);assert.equal(get('linkSave').disabled,false);
+});

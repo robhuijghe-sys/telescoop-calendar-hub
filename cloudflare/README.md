@@ -1,6 +1,6 @@
 # De Telescoop: gratis kalenderbasis
 
-Een zelfstandige Cloudflare Worker met D1. Dit is de technische basis voor de kalender in het bestaande Smartschool-nieuwsbericht. De actuele HTML van Rob wordt in de laatste bouwstap verwerkt; deze branch is nog geen vervanging voor de live Railway-kalender.
+Een zelfstandige Cloudflare Worker met D1. Dit is de technische basis voor de kalender in het bestaande Smartschool-nieuwsbericht. De aangeleverde HTML is verwerkt in een gecontroleerde import; deze branch is nog geen vervanging voor de live Railway-kalender.
 
 ## Gedrag
 
@@ -8,7 +8,7 @@ Een zelfstandige Cloudflare Worker met D1. Dit is de technische basis voor de ka
 - `/beheer#sleutel=<lange-sleutel>` toont invoer in gewone Nederlandse taal, een controleformulier en een doorzoekbare lijst met een verwijderknop. Het fragment wordt uit de adresbalk verwijderd en de sleutel blijft enkel voor die browsersessie bewaard.
 - `POST /api/manage/items` maakt een item aan. Een datum met dezelfde titel kan niet opnieuw worden toegevoegd. Een afspraak mag zonder uur worden ingevoerd.
 - `DELETE /api/manage/items/:id` markeert precies één item als verwijderd. Een bevestiging in het beheerscherm gaat eraan vooraf. Een trigger schrijft dezelfde wijziging in het auditlog; een verwijderd item blijft in de database bewaard.
-- Nieuw en geïmporteerd materiaal komt als afzonderlijke regels in `calendar_items`. Daardoor kan ook een oorspronkelijke kalenderregel gericht worden verwijderd. De migratie van de nog aan te leveren HTML moet die regels en hun opmaak eerst afzonderlijk identificeren.
+- Nieuw en geïmporteerd materiaal komt als afzonderlijke regels in `calendar_items`. Daardoor kan ook een oorspronkelijke kalenderregel gericht worden verwijderd. De import behoudt de tekstkleuren, nadruk, kalenderlinks, maandkleuren, seizoenen en focusregels.
 - De datum- en kleurinterpretatie is lokaal en regelgebaseerd. Er is geen betaalde AI-API.
 
 ## Beveiliging en toegang
@@ -17,7 +17,7 @@ De leesweergave heeft, net als de huidige werkende route, geen inlogscherm. Iede
 
 De beheersleutel heeft minimaal 32 willekeurige tekens; gebruik bij voorkeur 32 random bytes als 64 hextekens. Alleen de SHA-256-hash staat als Cloudflare-secret `EDITOR_TOKEN_SHA256`. Het beheer werkt zonder gebruikerslogin maar de gedeelde sleutel geeft zowel toevoeg- als verwijderrecht. Wie individuele rechten en namen in het auditlog wil, kan later meerdere editor-sleutels krijgen. Geef de beheerlink nooit mee in de publieke kalenderpagina.
 
-De code bevat geen kalenderinhoud of sleutels. De database en de uiteindelijke HTML worden pas na controle van de aangeleverde bron overgezet.
+De code bevat geen kalenderinhoud of sleutels. De bron en gegenereerde import blijven buiten de publieke repository. De database wordt bij ingebruikname gevuld.
 
 ## Voorbereiding van een eigen gratis Cloudflare-account
 
@@ -29,15 +29,27 @@ De code bevat geen kalenderinhoud of sleutels. De database en de uiteindelijke H
 
 Voor deze branch zijn stap 1–5 nog niet uitgevoerd: er is geen Cloudflare-account of D1-database verbonden. Een gratis account kan op de huidige voorwaarden tegen limieten aanlopen; gebruik geen betaald abonnement of automatische upgrade. De code draait zonder periodieke achtergrondprocessen. Bij een toekomstige migratie kan de database met Wrangler worden geëxporteerd; op het gratis D1-abonnement is herstel naar een moment binnen zeven dagen beschikbaar. Houd daarnaast zelf een export bij.
 
-## Aansluiting van de laatste HTML
+## Links beheren
 
-De uiteindelijke HTML is de gezaghebbende bron voor de volledige oorspronkelijke kalender. Bij ontvangst:
+Het beheer bevat Omschrijving en Link. Toevoegen, aanpassen van beide velden en bevestigd verwijderen gebruiken dezelfde beheersleutel. Onder het logo krijgen alle verwijzingen dezelfde opmaak met 🔗. Relatieve Smartschool-paden worden volledige Smartschool-adressen. Alleen HTTP(S) is toegestaan. De wijzigingen worden in dezelfde databasebewerking gelogd. Verwijderen bewaart het record, maar verbergt de link direct bij de volgende paginalaad; een open kalender ververst binnen 30 minuten.
 
-1. Identificeer per datum de afzonderlijk verwijderbare inhoudsregels en hun kleur/opmaak. Controleer bijzondere blokken, links, badges en maandkoppen afzonderlijk.
-2. Zet iedere inhoudsregel met een eigen `id`, datum en `source='legacy'` om; geef de huidige HTML-opmaak aan een gecontroleerde renderer in plaats van onbetrouwbare invoer als HTML uit te voeren.
-3. Exporteer op de omschakeldag de nadien toegevoegde, zichtbare items én verwijderingen uit de Railway SQLite-database en het snapshotbestand. Vergelijk aantallen, datums en zichtbare regels vóór en na import. Voer de import idempotent uit.
-4. Vervang de tijdelijke `renderCalendar` in `src/pages.mjs` door de gevalideerde oorspronkelijke opmaak, maar behoud de vaste route, 30 minuten verversing, D1-opslag en verwijdering per ID.
-5. Test de definitieve Cloudflare-URL als iframe in het bestaande Smartschool-nieuwsbericht en publiceer de nieuwe link pas na een visuele vergelijking op desktop en mobiel.
+## Import van de aangeleverde HTML
+
+Vanuit deze map, na `npm ci`:
+
+```sh
+node scripts/import-html.mjs /pad/naar/bron.html 2026 private-import
+npx wrangler d1 execute telescoop-kalender --remote --file=./schema.sql
+npx wrangler d1 execute telescoop-kalender --remote --file=./private-import/import.sql
+```
+
+Geef het startjaar expliciet op. De importer controleert dat de weekdagen kloppen en dat alle zichtbare kalendertekst behouden blijft. Scripts, event handlers en onveilige linkprotocollen worden niet overgenomen. Lege dagen blijven aanwezig. Herhaalimport doet niets zodra een importbatch bestaat en herstelt dus geen verwijderingen of gewijzigde links. Een andere bronsnapshot achteraf vraagt een afzonderlijke, gecontroleerde migratie.
+
+De ontvangen bron levert 152 kalenderdagen, 401 afzonderlijke regels en 7 links op. Bij Zorgoverleg verwijzen het icoon en de tekst naar twee verschillende bestemmingen; beide blijven behouden als document- en Smartschool-link. De SQL en het controlerapport staan lokaal in de uitgesloten map `private-import/` en zijn reproduceerbaar vanuit de oorspronkelijke bijlage. Publiceer deze schoolgegevens niet in GitHub.
+
+Bij omschakeling blijven nodig: wijzigingen sinds deze bronsnapshot uit Railway vergelijken/overzetten, import in de echte D1-database, visuele vergelijking op desktop en mobiel, en controle van de definitieve Cloudflare-URL in het Smartschool-iframe. Pas daarna de iframe-URL wijzigen. De bestaande Railway-kalender blijft tot dan actief.
+
+D1-file-import gebruikt geen expliciete BEGIN/COMMIT-statements, conform https://developers.cloudflare.com/d1/best-practices/import-export-data/.
 
 ## Lokaal controleren
 
@@ -56,4 +68,4 @@ Tijdens een tweede beoordeling zijn hersteld:
 - invoer wordt op type, toegestane categorie en maximale hoeveelheid bytes gecontroleerd;
 - de gezondheidscontrole controleert de echte database en het aanwezige schema.
 
-Negen gerichte tests slagen, inclusief het beheerschermpad toevoegen → zoeken → verwijderen annuleren → verwijderen bevestigen en een lijst met 2005 items. De Worker is met Wrangler 4.141.0 succesvol gebundeld via `deploy --dry-run`, zonder publicatie. De online Cloudflare- en Smartschool-controle moet nog plaatsvinden na aansluiting van het account en verwerking van de actuele HTML.
+Twaalf gerichte tests slagen, inclusief het beheerschermpad toevoegen → zoeken → verwijderen annuleren → verwijderen bevestigen en een lijst met 2005 items. De Worker is met Wrangler 4.141.0 succesvol gebundeld via `deploy --dry-run`, zonder publicatie. De online Cloudflare- en Smartschool-controle moet nog plaatsvinden na aansluiting van het account en de database-import.

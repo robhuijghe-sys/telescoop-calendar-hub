@@ -1,3 +1,4 @@
+import {normalizeLink} from './links.mjs';
 export const REFRESH_SECONDS = 30 * 60;
 export const CATEGORIES = {
   ouders:['#99CA3B','Ouders'], personeel:['#C614A1','Personeel'],
@@ -18,6 +19,9 @@ function formatDate(date) {
 
 export function renderCalendar(items, options={}) {
   const byMonth = new Map();
+  for(const date of options.layout?.dates || []) {
+    const ym=date.slice(0,7);if(!byMonth.has(ym)) byMonth.set(ym,new Map());byMonth.get(ym).set(date,[]);
+  }
   for (const item of items) {
     const month = item.date_local.slice(0,7);
     if (!byMonth.has(month)) byMonth.set(month,new Map());
@@ -25,24 +29,28 @@ export function renderCalendar(items, options={}) {
     if (!days.has(item.date_local)) days.set(item.date_local,[]);
     days.get(item.date_local).push(item);
   }
-  const months = [...byMonth].map(([ym,days])=>{
+  const months = [...byMonth].sort(([a],[b])=>a.localeCompare(b)).map(([ym,days])=>{
     const month = Number(ym.slice(5,7));
-    const rows = [...days].map(([date,entries])=>`<div class="day"><div class="date">${esc(formatDate(date))}</div><div class="entries">${entries.map(item=>{
+    const rows = [...days].sort(([a],[b])=>a.localeCompare(b)).map(([date,entries])=>`<div class="day"><div class="date">${esc(formatDate(date))}</div><div class="entries">${entries.map(item=>{
       const color = CATEGORIES[item.category]?.[0] ?? CATEGORIES.algemeen[0];
       const time = item.start_time ? `${esc(item.start_time)}${item.end_time ? `–${esc(item.end_time)}`:''} · ` : '';
+      if(item.source==='legacy' && item.display_html) return `<div class="item">${item.display_html}</div>`;
       return `<p class="item" style="color:${color}">${time}${esc(item.title)}${item.description ? `<br><span class="detail">${esc(item.description)}</span>`:''}</p>`;
     }).join('')}</div></div>`).join('');
-    return `<section class="month"><h2 style="background:${MONTH_COLOR[month]}">${MONTHS[month]} ${esc(ym.slice(0,4))}</h2>${rows}</section>`;
+    return `<section class="month"><h2 style="background:${esc(options.layout?.months?.[ym]?.gradient || MONTH_COLOR[month])}">${MONTHS[month]} ${esc(ym.slice(0,4))}<span class="season">${esc(options.layout?.months?.[ym]?.season || '')}</span></h2>${options.layout?.focus?.[ym] ? `<div class="focus">${esc(options.layout.focus[ym])}</div>` : ''}${rows}</section>`;
   }).join('');
-  const content = months || '<div class="month"><div class="empty">De kalenderinhoud wordt toegevoegd zodra de actuele HTML is ontvangen.</div></div>';
-  // Keep this route and its iframe contract stable. The final supplied HTML replaces the renderer later.
-  return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="${REFRESH_SECONDS}"><title>Schoolkalender · De Telescoop</title><style>${BASE_CSS}</style></head><body><main class="wrap"><header class="top"><span class="brand">De Telescoop · schoolkalender</span><span class="small">Verversing om de 30 minuten</span></header>${content}</main></body></html>`;
+  const content = months || '<div class="month"><div class="empty">Er zijn nog geen kalenderitems.</div></div>';
+  const links=(options.links || []).map(link=>{
+    let href;try {href=normalizeLink(link.url);}catch{return '';}
+    return `<p><a href="${esc(href)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">🔗</span> ${esc(link.description)}</a></p>`;
+  }).join('');
+  return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="${REFRESH_SECONDS}"><title>Schoolkalender · De Telescoop</title><style>${BASE_CSS}.wrap{max-width:1280px;font-size:12px}.logo{display:block;width:100%;max-width:210px;height:auto;margin:0 auto 12px}.reference-links{margin-bottom:20px}.reference-links p{margin:0 0 6px}.reference-links a{color:#6b5f59;text-decoration:none;border-bottom:1px solid #d8cfc8;overflow-wrap:anywhere}.reference-links a:hover{text-decoration:underline}.focus{padding:10px 16px;background:#fbfaf8;color:#605651}.month{border-radius:20px}.season{float:right;font-size:10px;letter-spacing:.14em;font-weight:400;padding:3px 9px;border-radius:999px;background:#ffffff2e}</style></head><body><main class="wrap"><header><img class="logo" src="https://telescoop-sgr8.smartschool.be/public/telescoop-sgr8/Images/P8JUKt6zzs28fnA9LjPg2owGK1768144749.PNG" alt="De Telescoop"><nav class="reference-links" aria-label="Verwijslinks">${links}</nav></header>${content}</main></body></html>`;
 }
 
 export function renderManager() {
   // The editor key is only ever read from the URL fragment. Fragments never reach HTTP logs.
-  return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Kalender beheren · De Telescoop</title><style>${BASE_CSS}body{background:#f7f5f1}.wrap{max-width:800px}.panel{background:#fff;border:1px solid #e5dfd8;border-radius:14px;padding:18px;margin:16px 0}.panel h2{margin:0 0 10px;font-size:1.2rem}.fields{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}label{display:block;font-size:.9rem;margin:9px 0 4px}input,textarea,select{font:inherit;width:100%;padding:10px;border:1px solid #c9c2bd;border-radius:7px;background:#fff}textarea{min-height:82px}button{font:inherit;background:#203555;color:white;padding:10px 14px;border:0;border-radius:8px;cursor:pointer}button.danger{background:#8a2f2f}button:disabled{opacity:.5}.result{padding:10px 12px;margin:10px 0;border-radius:8px;background:#f0f4fa}.row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-top:1px solid #eee}.row span{overflow-wrap:anywhere}@media(max-width:550px){.fields{grid-template-columns:1fr}.row{align-items:flex-start}}
-  </style></head><body><main class="wrap"><header class="top"><span class="brand">Kalender beheren</span><a href="/smartschool-calendar">Bekijk kalender</a></header><section class="panel" id="keyPanel"><h2>Beheersleutel</h2><p>Open de beheerlink of vul de sleutel hier in.</p><label for="key">Beheersleutel</label><input id="key" type="password" autocomplete="off"><p><button id="useKey">Verder</button></p></section><div id="app" hidden><section class="panel"><h2>Kalenderitem toevoegen</h2><label for="prompt">Beschrijf de afspraak in gewone taal</label><textarea id="prompt" placeholder="Bijvoorbeeld: Voeg op 6 oktober om 15.30 teamvergadering toe"></textarea><p><button id="interpret">Interpreteren</button></p><div id="preview" hidden><p id="assumptions" class="result"></p><div class="fields"><div><label for="date">Datum</label><input id="date" type="date"></div><div><label for="title">Tekst in kalender</label><input id="title" maxlength="500"></div><div><label for="start">Beginuur (optioneel)</label><input id="start" type="time"></div><div><label for="end">Einduur (optioneel)</label><input id="end" type="time"></div><div><label for="category">Kleur</label><select id="category">${Object.entries(CATEGORIES).map(([k,v])=>`<option value="${k}">${v[1]}</option>`).join('')}</select></div><div><label for="description">Extra regel (optioneel)</label><textarea id="description"></textarea></div></div><p><button id="save">Na controle toevoegen</button></p></div></section><section class="panel"><h2>Kalenderitems verwijderen</h2><p>Zoek een item, kies de juiste regel en bevestig het verwijderen. De wijziging blijft in het auditlog.</p><label for="search">Zoek op datum of tekst</label><input id="search" placeholder="Bijvoorbeeld: 01/12 of directie"><div id="items"></div></section></div><p id="notice" role="status" aria-live="polite"></p></main><script type="module">${MANAGER_JS}</script></body></html>`;
+  return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Kalender beheren · De Telescoop</title><style>${BASE_CSS}body{background:#f7f5f1}.wrap{max-width:800px}.panel{background:#fff;border:1px solid #e5dfd8;border-radius:14px;padding:18px;margin:16px 0}.panel h2{margin:0 0 10px;font-size:1.2rem}.fields{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}label{display:block;font-size:.9rem;margin:9px 0 4px}input,textarea,select{font:inherit;width:100%;padding:10px;border:1px solid #c9c2bd;border-radius:7px;background:#fff}textarea{min-height:82px}button{font:inherit;background:#203555;color:white;padding:10px 14px;border:0;border-radius:8px;cursor:pointer}button.danger{background:#8a2f2f}button:disabled{opacity:.5}.result{padding:10px 12px;margin:10px 0;border-radius:8px;background:#f0f4fa}.row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-top:1px solid #eee}.row span{overflow-wrap:anywhere;min-width:0;flex:1}.row button{flex-shrink:0}@media(max-width:550px){.fields{grid-template-columns:1fr}.row{align-items:flex-start;flex-wrap:wrap}.row span{flex-basis:100%}}
+  </style></head><body><main class="wrap"><header class="top"><span class="brand">Kalender beheren</span><a href="/smartschool-calendar">Bekijk kalender</a></header><section class="panel" id="keyPanel"><h2>Beheersleutel</h2><p>Open de beheerlink of vul de sleutel hier in.</p><label for="key">Beheersleutel</label><input id="key" type="password" autocomplete="off"><p><button id="useKey">Verder</button></p></section><div id="app" hidden><section class="panel"><h2>Links beheren</h2><p>Deze links verschijnen onder het logo, steeds met hetzelfde linkicoontje.</p><form id="linkForm"><label for="linkDescription">Omschrijving</label><input id="linkDescription" maxlength="200" required><label for="linkUrl">Link</label><input id="linkUrl" type="text" placeholder="https://… of /deeplink/…" maxlength="4096" required><p><button id="linkSave" type="submit">Link toevoegen</button> <button id="linkCancel" type="button" hidden>Annuleren</button></p></form><div id="links"></div></section><section class="panel"><h2>Kalenderitem toevoegen</h2><label for="prompt">Beschrijf de afspraak in gewone taal</label><textarea id="prompt" placeholder="Bijvoorbeeld: Voeg op 6 oktober om 15.30 teamvergadering toe"></textarea><p><button id="interpret">Interpreteren</button></p><div id="preview" hidden><p id="assumptions" class="result"></p><div class="fields"><div><label for="date">Datum</label><input id="date" type="date"></div><div><label for="title">Tekst in kalender</label><input id="title" maxlength="500"></div><div><label for="start">Beginuur (optioneel)</label><input id="start" type="time"></div><div><label for="end">Einduur (optioneel)</label><input id="end" type="time"></div><div><label for="category">Kleur</label><select id="category">${Object.entries(CATEGORIES).map(([k,v])=>`<option value="${k}">${v[1]}</option>`).join('')}</select></div><div><label for="description">Extra regel (optioneel)</label><textarea id="description"></textarea></div></div><p><button id="save">Na controle toevoegen</button></p></div></section><section class="panel"><h2>Kalenderitems verwijderen</h2><p>Zoek een item, kies de juiste regel en bevestig het verwijderen. De wijziging blijft in het auditlog.</p><label for="search">Zoek op datum of tekst</label><input id="search" placeholder="Bijvoorbeeld: 01/12 of directie"><div id="items"></div></section></div><p id="notice" role="status" aria-live="polite"></p></main><script type="module">${MANAGER_JS}</script></body></html>`;
 }
 
 export function filterItems(items,query) {
@@ -60,7 +68,7 @@ function managerBootstrap() {
   let key=new URLSearchParams(location.hash.slice(1)).get('sleutel') || '';
   try {key=key || sessionStorage.getItem('calendarKey') || '';} catch {}
   if(location.hash) history.replaceState(null,'',location.pathname);
-  let items=[], visibleCount=100;
+  let items=[], visibleCount=100, links=[], editingLink=null;
   const say=message=>{$('notice').textContent=message;};
   const api=async(path,options={})=>{
     const response=await fetch(path,{...options,headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'}});
@@ -79,7 +87,7 @@ function managerBootstrap() {
         if(!Number.isSafeInteger(result.next_cursor) || result.next_cursor<=after) throw new Error('De lijst kon niet volledig worden geladen.');
         after=result.next_cursor;
       } while(true);
-      items=collected;sortItems();
+      items=collected;sortItems();links=(await api('/api/manage/links')).links;showLinks();
       try {sessionStorage.setItem('calendarKey',key);} catch {}
       $('keyPanel').hidden=true;$('app').hidden=false;showItems();say('');
     } catch(e){$('keyPanel').hidden=false;$('app').hidden=true;say(e.message);}
@@ -133,6 +141,37 @@ function managerBootstrap() {
       row.append(name,button);box.append(row);
     }
     if(list.length>visibleCount){const more=document.createElement('button');more.textContent='Toon meer';more.onclick=()=>{visibleCount+=100;showItems();};box.append(more);}
+  }
+  function resetLink() {
+    editingLink=null;$('linkDescription').value='';$('linkUrl').value='';$('linkSave').textContent='Link toevoegen';$('linkCancel').hidden=true;
+  }
+  $('linkCancel').onclick=resetLink;
+  $('linkForm').onsubmit=async(event)=>{
+    event.preventDefault();$('linkSave').disabled=true;$('linkCancel').disabled=true;
+    try {
+      const result=await api('/api/manage/links'+(editingLink ? '/'+editingLink : ''),{method:editingLink ? 'PUT':'POST',body:JSON.stringify({description:$('linkDescription').value.trim(),url:$('linkUrl').value.trim()})});
+      if(editingLink) links=links.map(x=>x.id===editingLink ? result : x);else links.push(result);
+      resetLink();showLinks();say('Link opgeslagen. Openstaande kalenders verversen binnen 30 minuten.');
+    }catch(e){say(e.message);}finally{$('linkSave').disabled=false;$('linkCancel').disabled=false;}
+  };
+  function showLinks() {
+    const box=$('links');box.replaceChildren();
+    for(const link of links) {
+      const row=document.createElement('div');row.className='row';
+      const text=document.createElement('span');text.textContent='🔗 '+link.description+' — '+link.url;
+      const edit=document.createElement('button');edit.textContent='Aanpassen';edit.onclick=()=>{
+        if($('linkSave').disabled) return;
+        editingLink=link.id;$('linkDescription').value=link.description;$('linkUrl').value=link.url;$('linkSave').textContent='Wijzigingen opslaan';$('linkCancel').hidden=false;
+      };
+      const remove=document.createElement('button');remove.className='danger';remove.textContent='Verwijderen';remove.onclick=async()=>{
+        if($('linkSave').disabled || !confirm('Verwijder de link "'+link.description+'"?')) return;
+        remove.disabled=true;
+        try{await api('/api/manage/links/'+link.id,{method:'DELETE'});links=links.filter(x=>x.id!==link.id);if(editingLink===link.id) resetLink();showLinks();say('Link verwijderd. Openstaande kalenders verversen binnen 30 minuten.');}
+        catch(e){remove.disabled=false;say(e.message);}
+      };
+      row.append(text,edit,remove);box.append(row);
+    }
+    if(!links.length) box.textContent='Er zijn nog geen links. Voeg hierboven een link toe.';
   }
   $('search').oninput=()=>{visibleCount=100;showItems();};
 }

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS calendar_items (
   end_time TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'algemeen',
   source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','legacy')),
-  -- Reserved for the trusted, reviewed conversion of Rob's final HTML.
+  -- Sanitized by scripts/import-html.mjs; never accepted by management APIs.
   display_html TEXT,
   created_at TEXT NOT NULL,
   deleted_at TEXT
@@ -36,3 +36,23 @@ WHEN OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL BEGIN
   INSERT INTO audit_log(actor,action,item_id,details,created_at)
   VALUES('beheerlink','item.deleted',NEW.id,json_object('date',NEW.date_local,'title',NEW.title),NEW.deleted_at);
 END;
+
+CREATE TABLE IF NOT EXISTS calendar_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  description TEXT NOT NULL,
+  url TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT
+);
+CREATE INDEX IF NOT EXISTS links_visible ON calendar_links(deleted_at,id);
+CREATE TRIGGER IF NOT EXISTS audit_link_insert AFTER INSERT ON calendar_links BEGIN
+  INSERT INTO audit_log(actor,action,item_id,details,created_at)
+  VALUES('beheerlink','link.created',NEW.id,json_object('description',NEW.description,'url',NEW.url),NEW.updated_at);
+END;
+CREATE TRIGGER IF NOT EXISTS audit_link_update AFTER UPDATE ON calendar_links BEGIN
+  INSERT INTO audit_log(actor,action,item_id,details,created_at)
+  VALUES('beheerlink',CASE WHEN NEW.deleted_at IS NOT NULL THEN 'link.deleted' ELSE 'link.updated' END,NEW.id,
+    json_object('before_description',OLD.description,'before_url',OLD.url,'description',NEW.description,'url',NEW.url),NEW.updated_at);
+END;
+CREATE TABLE IF NOT EXISTS calendar_settings (key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS import_batches (digest TEXT PRIMARY KEY,created_at TEXT NOT NULL);
