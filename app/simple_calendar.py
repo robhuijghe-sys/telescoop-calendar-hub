@@ -189,7 +189,7 @@ def edited_snapshot():
 
 def links_html():
     con = core.db()
-    links = [('/kalender-wijzigen', 'Kalender wijzigen')] + [(r['url'], r['description']) for r in con.execute('SELECT url,description FROM editor_links WHERE deleted=0 ORDER BY id')]
+    links = [('/', 'Kalender wijzigen')] + [(r['url'], r['description']) for r in con.execute('SELECT url,description FROM editor_links WHERE deleted=0 ORDER BY id')]
     con.close()
     return ''.join(f'<p class="quick"><a href="{esc(url, quote=True)}" target="_blank" rel="noopener noreferrer">🔗 {esc(label)}</a></p>' for url, label in links)
 
