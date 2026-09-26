@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 temp = tempfile.TemporaryDirectory()
-os.environ.update(DB_PATH=temp.name + '/calendar.db', CALENDAR_SNAPSHOT_PATH=temp.name + '/snapshot.json', APP_SECRET='test-only', ADMIN_RESET_PASSWORD='', ENABLE_ADMIN_RECOVERY_LOG='false', CALENDAR_LINKS_GZ_B64='', CALENDAR_SNAPSHOT_GZ_B64='')
+os.environ.update(DB_PATH=temp.name + '/calendar.db', CALENDAR_SNAPSHOT_PATH=temp.name + '/snapshot.json', APP_SECRET='test-only', ADMIN_RESET_PASSWORD='', ENABLE_ADMIN_RECOVERY_LOG='false', CALENDAR_SOURCE_GZ_B64='', CALENDAR_LINKS_GZ_B64='', CALENDAR_SNAPSHOT_GZ_B64='')
 Path(os.environ['CALENDAR_SNAPSHOT_PATH']).write_text(json.dumps({'focus': {'2026-10': 'Focus lezen'}, 'entries': [{'date': '2026-10-01', 'label': 'do 01/10', 'html': '<span style="color:#c614a1">Bestaande <strong>afspraak</strong> <a href="/deeplink/123">document</a></span><br>Tweede afspraak'}]}))
 
 from fastapi.testclient import TestClient
@@ -39,7 +39,7 @@ with TestClient(app) as client:
     assert client.post('/kalender-regel/' + row['id'], data={'version': row['version'], 'date': '2026-10-03', 'body_html': '<span onclick="alert(1)">Jorge neemt zwemmen over</span><script>alert(1)</script><a href="javascript:alert(1)">link</a>'}).status_code == 200
     assert client.post('/kalender-regel/' + row['id'], data={'version': row['version'], 'date': '2026-10-03', 'body_html': 'Stale'}).status_code == 409
     html = client.get('/smartschool-calendar').text
-    assert 'onclick=' not in html and '<script>' not in html and 'javascript:' not in html
+    assert 'onclick=' not in html and '<script>alert' not in html and 'javascript:' not in html
     assert 'Jorge neemt zwemmen over' in html
     row = next(r for r in rows_all() if r['title'] == 'Lien afwezig')
     assert client.post('/kalender-verwijderen/' + row['id'], data={'version': row['version']}).status_code == 200

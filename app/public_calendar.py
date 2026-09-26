@@ -131,7 +131,7 @@ def public_create(
     start, end, untimed = _times_to_utc(date, start_time, end_time, all_day == "1")
     con = core.db()
     duplicate = con.execute(
-        "SELECT id,title FROM events WHERE lower(title)=lower(?) AND date(start_at)=date(?)",
+        "SELECT id,title FROM events WHERE visible_in_embed=1 AND lower(title)=lower(?) AND date(start_at)=date(?)",
         (title.strip(), start),
     ).fetchone()
     if duplicate:
@@ -144,6 +144,8 @@ def public_create(
         (title.strip(), description.strip(), start, end, 1 if untimed else 0, location.strip(), "[]", resolved_category, "published", source_prompt, 1, 0, now, now),
     )
     eid = cur.lastrowid
+    if con.execute("SELECT 1 FROM sqlite_master WHERE name='editor_days'").fetchone():
+        con.execute('DELETE FROM editor_days WHERE date_local=?', (date,))
     con.commit(); con.close()
     core.audit("public-link", "public.calendar_item_added", eid, {"title": title, "category": resolved_category})
     return RedirectResponse("/?added=1", 303)

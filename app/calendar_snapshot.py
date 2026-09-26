@@ -49,7 +49,7 @@ def _dynamic_rows():
     return grouped
 
 
-def render_snapshot_calendar() -> str:
+def render_snapshot_calendar(hide_past=False, hidden_dates=()) -> str:
     snap = _load_snapshot()
     base_by_date = {e["date"]: e for e in snap.get("entries", [])}
     focus = snap.get("focus", {})
@@ -66,13 +66,15 @@ def render_snapshot_calendar() -> str:
             d = datetime.strptime(ds, "%Y-%m-%d").date()
         except ValueError:
             continue
+        if ds in hidden_dates or (hide_past and d < today):
+            continue
         if (d.year, d.month) < (today.year, today.month):
             continue
         if (d.year, d.month) > (end_year, end_month):
             continue
         parsed_dates.append(d)
 
-    month_keys = sorted({(d.year, d.month) for d in parsed_dates} | {(today.year, today.month)})
+    month_keys = sorted({(d.year, d.month) for d in parsed_dates} | (set() if hide_past else {(today.year, today.month)}))
     blocks = []
     for year, month in month_keys:
         month_days = sorted(d for d in parsed_dates if d.year == year and d.month == month)
@@ -93,8 +95,8 @@ def render_snapshot_calendar() -> str:
                 pieces.extend(f'<p class="event-line live-addition">{_event_line(row)}</p>' for row in dyn[ds])
             body = "".join(pieces) or '<span class="muted">Nog geen inhoud.</span>'
             event_cell_class = "event-cell live-only" if (not has_base_content and ds in dyn) else "event-cell"
-            desktop_rows.append(f'<tr><td class="date-cell">{html.escape(label)}</td><td class="{event_cell_class}">{body}</td></tr>')
-            mobile_rows.append(f'<div class="mobile-day"><div class="mobile-date">{html.escape(label)}</div><div class="mobile-events">{body}</div></div>')
+            desktop_rows.append(f'<tr data-calendar-date="{ds}"><td class="date-cell">{html.escape(label)}</td><td class="{event_cell_class}">{body}</td></tr>')
+            mobile_rows.append(f'<div class="mobile-day" data-calendar-date="{ds}"><div class="mobile-date">{html.escape(label)}</div><div class="mobile-events">{body}</div></div>')
 
         if not desktop_rows:
             desktop_rows.append('<tr><td class="event-cell" colspan="2">Nog geen kalenderitems.</td></tr>')

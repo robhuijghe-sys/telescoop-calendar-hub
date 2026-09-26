@@ -25,7 +25,7 @@ import app.public_calendar as public
 import app.delete_flow as deletion
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 
-BUILD = 'railway-editor-20260926-v1'
+BUILD = 'railway-editor-20260926-v2'
 REFRESH_SECONDS = 7200
 esc = html.escape
 original_snapshot = snapshot._load_snapshot
@@ -35,6 +35,21 @@ original_interpret = deletion.public_interpret_add_delete
 lock = threading.Lock()
 cache = {}
 FONT_CSS = '''@font-face{font-family:Roboto;font-style:normal;font-weight:400;font-display:swap;src:url(/calendar-fonts/roboto-latin-400.woff2)}@font-face{font-family:Roboto;font-style:normal;font-weight:700;font-display:swap;src:url(/calendar-fonts/roboto-latin-700.woff2)}html,body,input,textarea,select,button,.base-content,.base-content *{font-family:Aptos,Roboto,"Segoe UI",Arial,sans-serif!important}.quick{margin-bottom:7px!important}.quick a{overflow-wrap:anywhere}.editbox{border:1px solid #c9c2bd;border-radius:8px;padding:14px;min-height:100px;line-height:1.6}.row{display:flex;align-items:center;gap:10px;border-top:1px solid #eee;padding:12px 0}.row .text{flex:1;min-width:0;overflow-wrap:anywhere}.row form{margin:0}.danger{background:#8a2f2f}nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}input:focus,textarea:focus,button:focus-visible,[contenteditable]:focus{outline:3px solid #b4c9e6;outline-offset:2px}@media(max-width:600px){.row{flex-wrap:wrap}.row .text{flex-basis:100%}}'''
+
+MIDNIGHT_SCRIPT = """<script id="calendar-midnight">
+(() => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit'});
+  function prune() {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date()).map(p => [p.type,p.value]));
+    const today = parts.year + '-' + parts.month + '-' + parts.day;
+    document.querySelectorAll('[data-calendar-date]').forEach(el => { if(el.dataset.calendarDate < today) el.remove(); });
+    document.querySelectorAll('.month-card').forEach(el => { if(!el.querySelector('[data-calendar-date]')) el.remove(); });
+  }
+  function tick() { prune(); setTimeout(tick,60000 - Date.now()%60000); }
+  document.addEventListener('visibilitychange',prune);
+  tick();
+})();
+</script>"""
 
 
 def safe_url(value):
@@ -132,8 +147,9 @@ def setup_editor():
       CREATE TABLE IF NOT EXISTS editor_links(id INTEGER PRIMARY KEY AUTOINCREMENT,description TEXT NOT NULL,url TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,deleted INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS editor_state(id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL DEFAULT 0);
       INSERT OR IGNORE INTO editor_state(id) VALUES(1);
+      CREATE TABLE IF NOT EXISTS editor_days(date_local TEXT PRIMARY KEY,hidden INTEGER NOT NULL DEFAULT 1);
     ''')
-    for table in ('events', 'editor_lines', 'editor_links', 'settings'):
+    for table in ('events', 'editor_lines', 'editor_links', 'editor_days', 'settings'):
         for operation in ('INSERT', 'UPDATE', 'DELETE'):
             con.execute(f'CREATE TRIGGER IF NOT EXISTS editor_revision_{table}_{operation} AFTER {operation} ON {table} BEGIN UPDATE editor_state SET revision=revision+1 WHERE id=1; END')
     if not con.execute("SELECT 1 FROM settings WHERE key='editor_migrated'").fetchone():
@@ -150,6 +166,8 @@ def setup_editor():
         con.execute("INSERT INTO settings(key,value) VALUES('editor_migrated','1')")
     con.commit()
     con.close()
+    from app.latest_source import apply_latest_source
+    apply_latest_source(original_snapshot, split_lines, clean_html, plain, safe_url)
 
 
 def edited_snapshot():
@@ -216,8 +234,9 @@ for route, method in [('/', 'GET'), ('/smartschool-calendar', 'GET'), ('/public/
 def health():
     con = core.db()
     con.execute('SELECT revision FROM editor_state WHERE id=1').fetchone()
+    source = con.execute("SELECT value FROM settings WHERE key='editor_source_digest'").fetchone()
     con.close()
-    return {'ok': True, 'version': BUILD}
+    return {'ok': True, 'version': BUILD, 'source_digest': source[0] if source else None}
 
 
 @app.get('/smartschool-calendar')
@@ -225,11 +244,15 @@ def calendar(request: Request):
     con = core.db()
     revision = con.execute('SELECT revision FROM editor_state WHERE id=1').fetchone()[0]
     con.close()
-    key = (revision, datetime.now(core.TZ).strftime('%Y-%m'))
+    key = (revision, datetime.now(core.TZ).date().isoformat())
     with lock:
         if cache.get('key') != key:
-            doc = snapshot.render_snapshot_calendar().replace('http-equiv="refresh" content="30"', f'http-equiv="refresh" content="{REFRESH_SECONDS}"')
+            con = core.db()
+            hidden = {r[0] for r in con.execute('SELECT date_local FROM editor_days WHERE hidden=1')}
+            con.close()
+            doc = snapshot.render_snapshot_calendar(hide_past=True, hidden_dates=hidden).replace('http-equiv="refresh" content="30"', f'http-equiv="refresh" content="{REFRESH_SECONDS}"')
             doc = doc.replace('</style>', FONT_CSS + '</style>', 1)
+            doc = doc.replace('</body>', MIDNIGHT_SCRIPT + '</body>')
             cache.update(key=key, doc=doc, etag='"' + hashlib.sha256(doc.encode()).hexdigest() + '"')
         doc, etag = cache['doc'], cache['etag']
     headers = {'ETag': etag, 'Cache-Control': 'no-cache, must-revalidate', 'X-Calendar-Version': BUILD}
@@ -267,6 +290,7 @@ def add_lines(date: str = Form(...), lines: str = Form(...)):
     con = core.db()
     try:
         con.execute('BEGIN IMMEDIATE')
+        con.execute('DELETE FROM editor_days WHERE date_local=?', (date,))
         added = 0
         for line in rows:
             if con.execute('SELECT id FROM editor_lines WHERE deleted=0 AND date_local=? AND title=?', (date, line)).fetchone():
@@ -279,6 +303,25 @@ def add_lines(date: str = Form(...), lines: str = Form(...)):
     finally:
         con.close()
     return RedirectResponse('/?saved=1', 303)
+
+
+@app.post('/kalender-dag-verwijderen')
+def delete_day(date: str = Form(...)):
+    valid_date(date)
+    con = core.db()
+    try:
+        con.execute('BEGIN IMMEDIATE')
+        basis = [dict(r) for r in con.execute('SELECT * FROM editor_lines WHERE date_local=? AND deleted=0', (date,))]
+        events = [dict(r) for r in con.execute('SELECT * FROM events WHERE visible_in_embed=1') if datetime.fromisoformat(r['start_at']).astimezone(core.TZ).date().isoformat() == date]
+        con.execute('UPDATE editor_lines SET deleted=1,version=version+1 WHERE date_local=? AND deleted=0', (date,))
+        for event in events:
+            con.execute("UPDATE events SET visible_in_embed=0,status='deleted',updated_at=? WHERE id=?", (core.now_iso(), event['id']))
+        con.execute('INSERT INTO editor_days(date_local,hidden) VALUES(?,1) ON CONFLICT(date_local) DO UPDATE SET hidden=1', (date,))
+        audit(con, 'calendar.day_deleted', {'date': date, 'basis': basis, 'events': events})
+        con.commit()
+    finally:
+        con.close()
+    return RedirectResponse('/kalender-wijzigen?saved=1', 303)
 
 
 @app.post('/public/interpret')
@@ -315,6 +358,7 @@ def edit_list(q: str = '', date: str = '', p: int = 1, saved: int = 0):
     rows = [r for r in rows_all() if (not date or r['date'] == date) and all(t in normalized(r['date'] + ' ' + r['date'][8:] + '/' + r['date'][5:7] + ' ' + r['title']) for t in terms)]
     start = max(0, p - 1) * 60
     body = '<p class="ok">Wijziging opgeslagen.</p>' if saved else ''
+    body += '<div class="card"><h2>Een volledige dag verwijderen</h2><p>Voorbije dagen verdwijnen automatisch na middernacht, volgens Belgische tijd. Hieronder kun je ook zelf een dag met alle activiteiten en vervangingen verwijderen.</p><form method="post" action="/kalender-dag-verwijderen" onsubmit="return confirm(\'Deze hele dag met ALLE activiteiten en vervangingen verwijderen?\')"><label>Dag</label><input type="date" name="date" required><p><button class="danger">Hele dag verwijderen</button></p></form></div>'
     body += f'<div class="card"><h2>Kalender wijzigen</h2><form><label>Zoeken op tekst of datum</label><input name="q" value="{esc(q, quote=True)}"><label>Datum (optioneel)</label><input type="date" name="date" value="{esc(date, quote=True)}"><p><button>Zoeken</button> <a href="/kalender-wijzigen">Alles tonen</a></p></form><p>{len(rows)} kalenderregels</p>'
     for row in rows[start:start + 60]:
         body += f'<div class="row"><div class="text">{esc(row["date"])} · {esc(row["title"])}</div><a class="btn" href="/kalender-regel/{row["id"]}">Aanpassen</a><form method="post" action="/kalender-verwijderen/{row["id"]}" onsubmit="return confirm(\'Deze kalenderregel verwijderen?\')"><input type="hidden" name="version" value="{esc(row["version"], quote=True)}"><button class="danger">Verwijderen</button></form></div>'
@@ -367,6 +411,7 @@ async def save_row(key: str, request: Request):
         version = str(row['version'] if kind == 'basis' else row['updated_at'])
         if version != form.get('version'):
             raise HTTPException(409, 'Deze regel is ondertussen gewijzigd. Open hem opnieuw voordat je opslaat.')
+        con.execute('DELETE FROM editor_days WHERE date_local=?', (date,))
         if kind == 'basis':
             rich = clean_html(str(form.get('body_html', '')))
             if not plain(rich) or len(rich) > 20000:

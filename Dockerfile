@@ -15,3 +15,5 @@ RUN python tests/simple_editor_smoke.py
 RUN mkdir -p /data
 EXPOSE 8000
 CMD ["uvicorn", "app.simple_calendar:app", "--host", "0.0.0.0", "--port", "8000"]
+
+RUN python tests/day_source_smoke.py
