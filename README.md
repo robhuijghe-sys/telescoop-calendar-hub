@@ -1,5 +1,22 @@
 # Telescoop Calendar Hub
 
+## Actuele publieke kalender (26 september 2026)
+
+De Railway-service start met `app.simple_calendar:app`. De oorspronkelijke SQLite-databank en JSON-kalender op `/data` blijven behouden. De eerste start bewaart een databasekopie en zet de bestaande kalenderregels transactioneel in bewerkbare regels om; latere starts importeren ze niet opnieuw. Bestaande toevoegingen uit `events` blijven beschikbaar.
+
+- `/`: meerdere regels in één keer toevoegen op één datum, bijvoorbeeld een afwezigheid met alle vervangingen. Iedere regel blijft apart bewerkbaar. De bestaande invoer in gewone Nederlandse taal blijft beschikbaar.
+- `/kalender-wijzigen`: zoeken, wijzigen en bevestigd verwijderen van oorspronkelijke en later toegevoegde activiteiten. Wijzigingsversies voorkomen dat twee open formulieren elkaar stilzwijgend overschrijven.
+- `/kalender-links`: omschrijvingen en links toevoegen, aanpassen en verwijderen.
+- `/smartschool-calendar`: dezelfde Smartschool-URL, met alle verwijzingen onder het logo en `🔗 Kalender wijzigen` boven de kalender. Verversing elke 7200 seconden, Aptos met lokaal geleverde Roboto-reserve.
+
+Deze schermen zijn bewust voor iedereen met de URL bruikbaar, zonder account of toegangscode. Verwijderen verbergt een regel; de oorspronkelijke gegevens en het auditlog blijven bewaard. De kalender rendert uit een cache die na elke databasewijziging ongeldig wordt; ongewijzigde browseraanvragen ontvangen HTTP 304. Er is geen achtergrondpolling of betaalde AI-API.
+
+Bij de eerste ingebruikname kan `CALENDAR_LINKS_GZ_B64` de aangeleverde verwijzingen bevatten (gzip + base64 van JSON met `description` en `url`). Die schoolgegevens staan niet in nieuwe bronbestanden. Daarna zijn wijzigingen in de database leidend.
+
+Controle: alle acht Python-smoketests slagen, inclusief meervoudig toevoegen, gedeeltelijk verwijderen, bestaande activiteiten wijzigen, behoud bij herstart, conflicten, links en HTML-validatie. Een afzonderlijke controle met de actuele online kalender behield de volledige tekst van alle 158 getoonde dagen. In Smartschool wordt de bestaande iframe-URL gebruikt. Minder verversen en Railway Serverless verminderen verbruik; dit garandeert geen onbeperkt gratis hosting.
+
+De onderstaande documentatie beschrijft daarnaast de oorspronkelijke account- en integratiemogelijkheden; deze zijn niet nodig voor de publieke kalender.
+
 Interne kalenderhub voor GO! BS De Telescoop. Doel: directie, secretariaat en zorg kunnen activiteiten in gewone Nederlandse zinnen invoeren, controleren en opslaan. Zodra Smartschool de ontbrekende Planner-scope en endpoints levert, kunnen directie en secretariaat dezelfde activiteiten rechtstreeks naar Smartschool Planner publiceren.
 
 ## Wat werkt al zonder Smartschool Planner API

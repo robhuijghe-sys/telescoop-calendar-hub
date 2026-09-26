@@ -11,6 +11,7 @@ RUN python tests/public_post_smoke.py
 RUN python tests/snapshot_smoke.py
 RUN python tests/parser_title_smoke.py
 RUN python tests/delete_flow_smoke.py
+RUN python tests/simple_editor_smoke.py
 RUN mkdir -p /data
 EXPOSE 8000
-CMD ["uvicorn", "app.public_calendar_snapshot:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.simple_calendar:app", "--host", "0.0.0.0", "--port", "8000"]
