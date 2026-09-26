@@ -6,3 +6,6 @@ node_modules/
 dist/
 
 private-import/
+.wrangler.publish.json
+SMARTSCHOOL-code.txt
+KALENDER-LINK.txt

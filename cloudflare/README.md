@@ -88,3 +88,16 @@ Deze versie verwacht een nieuwe database met de volledige `schema.sql`. Een oude
 
 Cache API-documentatie: https://developers.cloudflare.com/workers/runtime-apis/cache/
 Versie-binding: https://developers.cloudflare.com/workers/runtime-apis/bindings/version-metadata/
+
+
+## Publicatie vanaf een Windows-computer
+
+`START-KALENDER.cmd` installeert de vastgezette dependencies met `npm ci` en voert `scripts/publish.mjs` uit. Vereist Node.js 24+ en een Cloudflare-account. De standaard OAuth-aanmelding vindt in de lokale browser plaats; er worden geen wachtwoorden of API-tokens in de chat gevraagd. De workflow koopt geen abonnement of domein en wijzigt geen tariefplan. Gebruik een Free-account voor de bedoelde kosteloze configuratie.
+
+De publicatie kiest een unieke Worker- en databasenaam, bewaart installatiegegevens buiten git, maakt de D1-database in West-Europa aan, voert schema en de meegeleverde eenmalige import uit en publiceert de Worker inclusief de hash van de beheersleutel. De links worden uitsluitend afgeleid uit een succesvolle deploy-uitvoer van Wrangler. Een controle op health, kalender en beheerrechten volgt daarna. De gewone browser kan een eenmalige workers.dev-naam vragen.
+
+Uitvoer: `private-import/BEHEERLINK.txt`, `SMARTSCHOOL-code.txt` en `KALENDER-LINK.txt`. De private map bevat ook de vaste installatiestatus. Bewaar die map voor herhaalde uitvoering. De schooldata en beheersleutel worden niet naar de publieke GitHub-repository geschreven.
+
+De oorspronkelijke apparaatkoppeling kon hier niet afronden: het ophalen van de Cloudflare-aanmelding is door de netwerkregels van deze uitvoeromgeving geblokkeerd. De Windows-route voert de officiële publicatietool rechtstreeks op de computer van de gebruiker uit. Dit is voorbereid en gecontroleerd, maar geen claim dat er al een live kalender bestaat.
+
+Controle: 20 tests slagen, waaronder herstart na een onderbroken publicatie, behoud van database/sleutel en weigeren van ongeldige deploy-URL's. De Windows-publicatiestroom is getest met gesimuleerde Cloudflare-antwoorden; een daadwerkelijke Windows-publicatie is nog niet uitgevoerd.
