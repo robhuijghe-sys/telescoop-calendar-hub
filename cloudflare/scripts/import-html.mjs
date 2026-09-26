@@ -38,7 +38,7 @@ function splitLines(node) {
     for(const child of n.childNodes) walk(child,next);
     if(block && lines.at(-1)) lines.push('');
   }
-  for(const child of node.childNodes) walk(child);
+  walk(node);
   return lines.map(html=>({html,title:text(parseHTML('<div>'+html+'</div>').document.firstElementChild.textContent)})).filter(x=>x.title);
 }
 export function convert(source,startYear) {

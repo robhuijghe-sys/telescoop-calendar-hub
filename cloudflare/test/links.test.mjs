@@ -6,17 +6,18 @@ import {parseHTML} from 'linkedom';
 
 test('link API: beveiliging, validatie, wijzigen, verwijderen en publieke opmaak',async()=>{
   const {call,sqlite}=harness();
+  const token='a'.repeat(64);
   assert.equal((await call('/api/manage/links','POST',{description:'x',url:'https://example.org'},'')).status,401);
   for(const url of ['javascript:alert(1)','data:text/html,foo','//evil.org','https://user:pass@example.org','https://exam\nple.org']) assert.equal((await call('/api/manage/links','POST',{description:'x',url})).status,400);
   const response=await call('/api/manage/links','POST',{description:'<script>test</script>',url:'/deeplink/1?a=1&b=2'});assert.equal(response.status,201);const link=await response.json();
   assert.match(link.url,/^https:\/\/telescoop-sgr8.smartschool.be/);
   let html=await (await call('/smartschool-calendar')).text();const {document}=parseHTML(html);
-  const a=document.querySelector('.reference-links a');assert.equal(a.getAttribute('href'),link.url);assert.match(a.textContent,/🔗/);assert.equal(a.querySelector('script'),null);
-  assert.equal((await call('/api/manage/links/'+link.id,'PUT',{description:'Aangepast',url:'https://example.org'})).status,200);
+  const a=document.querySelector('.reference-links p:nth-child(2) a');assert.equal(a.getAttribute('href'),link.url);assert.match(a.textContent,/🔗/);assert.equal(a.querySelector('script'),null);
+  assert.equal((await call('/api/manage/links/'+link.id,'PUT',{description:'Aangepast',url:'https://example.org'},token,{'If-Match':'1'})).status,200);
   html=await (await call('/smartschool-calendar')).text();assert.match(html,/Aangepast/);
-  assert.equal((await call('/api/manage/links/'+link.id,'DELETE')).status,200);
-  assert.equal((await call('/api/manage/links/'+link.id,'DELETE')).status,404);
-  assert.equal((await call('/api/manage/links/'+link.id,'PUT',{description:'x',url:'https://example.org'})).status,404);
+  assert.equal((await call('/api/manage/links/'+link.id,'DELETE',undefined,token,{'If-Match':'2'})).status,200);
+  assert.equal((await call('/api/manage/links/'+link.id,'DELETE',undefined,token,{'If-Match':'2'})).status,404);
+  assert.equal((await call('/api/manage/links/'+link.id,'PUT',{description:'x',url:'https://example.org'},token,{'If-Match':'2'})).status,404);
   assert.equal((await (await call('/api/manage/links')).json()).links.length,0);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action LIKE 'link.%'").get().n,3);
 });

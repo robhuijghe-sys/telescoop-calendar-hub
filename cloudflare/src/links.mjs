@@ -11,23 +11,31 @@ export function validateLink(body) {
   return {description:body.description.trim(),url:normalizeLink(body.url)};
 }
 export async function listLinks(db) {
-  const {results=[]}=await db.prepare('SELECT id,description,url FROM calendar_links WHERE deleted_at IS NULL ORDER BY id').bind().all();return results;
+  const {results=[]}=await db.prepare('SELECT id,description,url,version FROM calendar_links WHERE deleted_at IS NULL ORDER BY id').bind().all();return results;
 }
 export async function manageLinks(request,db,path,payload) {
   if(path==='/api/manage/links' && request.method==='GET') return {links:await listLinks(db)};
   const match=path.match(/^\/api\/manage\/links\/(\d+)$/), now=new Date().toISOString();
   if(path==='/api/manage/links' && request.method==='POST') {
     const link=validateLink(await payload(request));
-    return db.prepare('INSERT INTO calendar_links(description,url,updated_at) VALUES(?,?,?) RETURNING id,description,url').bind(link.description,link.url,now).first();
+    try {return await db.prepare('INSERT INTO calendar_links(description,url,updated_at) VALUES(?,?,?) RETURNING id,description,url,version').bind(link.description,link.url,now).first();} catch(error) {if(/UNIQUE constraint failed/i.test(String(error))) return {duplicate:true};throw error;}
   }
   if(match && ['PUT','DELETE'].includes(request.method)) {
     const id=Number(match[1]);if(!Number.isSafeInteger(id) || id<1) throw new Error('Controleer de gekozen link.');
+    const version=Number(request.headers.get('If-Match')?.replace(/^"|"$/g,''));
+    if(!Number.isSafeInteger(version) || version<1) return {conflict:true};
     if(request.method==='PUT') {
       const link=validateLink(await payload(request));
-      return await db.prepare('UPDATE calendar_links SET description=?,url=?,updated_at=? WHERE id=? AND deleted_at IS NULL RETURNING id,description,url').bind(link.description,link.url,now,id).first() || {missing:true};
+      try {
+        const result=await db.prepare('UPDATE calendar_links SET description=?,url=?,updated_at=?,version=version+1 WHERE id=? AND version=? AND deleted_at IS NULL RETURNING id,description,url,version').bind(link.description,link.url,now,id,version).first();
+        if(result) return result;
+      }catch(error){if(/UNIQUE constraint failed/i.test(String(error))) return {duplicate:true};throw error;}
+    } else {
+      const result=await db.prepare('UPDATE calendar_links SET deleted_at=?,updated_at=?,version=version+1 WHERE id=? AND version=? AND deleted_at IS NULL').bind(now,now,id,version).run();
+      if(result.meta?.changes) return {deleted:true,id};
     }
-    const result=await db.prepare('UPDATE calendar_links SET deleted_at=?,updated_at=? WHERE id=? AND deleted_at IS NULL').bind(now,now,id).run();
-    return result.meta?.changes ? {deleted:true,id} : {missing:true};
+    const current=await db.prepare('SELECT id FROM calendar_links WHERE id=? AND deleted_at IS NULL').bind(id).first();
+    return current ? {conflict:true} : {missing:true};
   }
   return null;
 }

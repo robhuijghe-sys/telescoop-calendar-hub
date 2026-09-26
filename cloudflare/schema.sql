@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS calendar_links (
   description TEXT NOT NULL,
   url TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
   deleted_at TEXT
 );
 CREATE INDEX IF NOT EXISTS links_visible ON calendar_links(deleted_at,id);
@@ -56,3 +57,17 @@ CREATE TRIGGER IF NOT EXISTS audit_link_update AFTER UPDATE ON calendar_links BE
 END;
 CREATE TABLE IF NOT EXISTS calendar_settings (key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS import_batches (digest TEXT PRIMARY KEY,created_at TEXT NOT NULL);
+
+CREATE UNIQUE INDEX IF NOT EXISTS links_visible_duplicate ON calendar_links(description COLLATE NOCASE,url) WHERE deleted_at IS NULL;
+-- Changes invalidate public render caches atomically, including imports and SQL maintenance.
+CREATE TABLE IF NOT EXISTS calendar_state (id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL DEFAULT 0,epoch TEXT NOT NULL);
+INSERT OR IGNORE INTO calendar_state(id,epoch) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER IF NOT EXISTS revision_calendar_items_insert AFTER INSERT ON calendar_items BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_items_update AFTER UPDATE ON calendar_items BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_items_delete AFTER DELETE ON calendar_items BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_links_insert AFTER INSERT ON calendar_links BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_links_update AFTER UPDATE ON calendar_links BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_links_delete AFTER DELETE ON calendar_links BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_settings_insert AFTER INSERT ON calendar_settings BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_settings_update AFTER UPDATE ON calendar_settings BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS revision_calendar_settings_delete AFTER DELETE ON calendar_settings BEGIN UPDATE calendar_state SET revision=revision+1 WHERE id=1; END;

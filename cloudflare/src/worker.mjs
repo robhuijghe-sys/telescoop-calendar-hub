@@ -1,11 +1,12 @@
-import {listLinks,manageLinks} from './links.mjs';
+import {serveCalendar} from './read-calendar.mjs';
+import {manageLinks} from './links.mjs';
 import {parseInstruction} from './parser.mjs';
-import {CATEGORIES, renderCalendar, renderManager} from './pages.mjs';
+import {CATEGORIES, renderManager} from './pages.mjs';
 
 const json = (data, status=200) => new Response(JSON.stringify(data), {status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
-const html = (data, isCalendar=false) => new Response(data, {headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow',
+export const html = (data, isCalendar=false) => new Response(data, {headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow',
   // The calendar keeps the proven Smartschool iframe contract. The management page cannot be framed.
-  'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; ${isCalendar ? "script-src 'none';" : "script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none';"} img-src 'self' https://telescoop-sgr8.smartschool.be; base-uri 'none'; form-action 'self'`}});
+  'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; ${isCalendar ? "script-src 'none';" : "script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none';"} font-src 'self'; img-src 'self' https://telescoop-sgr8.smartschool.be; base-uri 'none'; form-action 'self'`}});
 
 async function authorized(request, env) {
   const expected = env.EDITOR_TOKEN_SHA256;
@@ -55,30 +56,29 @@ function validItem(item) {
   return {title,description,date,start,end,category};
 }
 
-async function visibleItems(db) {
-  const result = await db.prepare('SELECT id,date_local,title,description,start_time,end_time,category,source,display_html FROM calendar_items WHERE deleted_at IS NULL ORDER BY date_local,start_time,id').bind().all();
-  return result.results || [];
-}
-
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url), path=url.pathname;
     const method = request.method;
     if (!env.DB) return json({error:'Database nog niet ingesteld.'},503);
     try {
       if (method==='GET' && path==='/health') {
-        try {await env.DB.prepare('SELECT id FROM calendar_items LIMIT 1').bind().first();return json({ok:true});}
+        try {const result=await env.DB.batch([
+          env.DB.prepare('SELECT display_html FROM calendar_items LIMIT 1').bind(),
+          env.DB.prepare('SELECT version FROM calendar_links LIMIT 1').bind(),
+          env.DB.prepare('SELECT value FROM calendar_settings LIMIT 1').bind(),
+          env.DB.prepare('SELECT epoch,revision FROM calendar_state WHERE id=1').bind()
+        ]);if(result[3].results?.length!==1) throw new Error('Kalenderversie ontbreekt.');return json({ok:true});}
         catch {return json({ok:false,error:'Database niet gereed.'},503);}
       }
-      if (method==='GET' && path==='/smartschool-calendar') {
-        const [items,links,settings]=await Promise.all([visibleItems(env.DB),listLinks(env.DB),env.DB.prepare("SELECT value FROM calendar_settings WHERE key='layout'").bind().first()]);
-        return html(renderCalendar(items,{links,layout:settings ? JSON.parse(settings.value) : {}}),true);
-      }
-      if (method==='GET' && (path==='/beheer' || path==='/')) return html(renderManager());
+      if (['GET','HEAD'].includes(method) && path==='/smartschool-calendar') return await serveCalendar(request,env,ctx,html);
+      if (method==='GET' && (path==='/beheer' || path==='/')) return html(renderManager({origin:url.origin}));
       if (!path.startsWith('/api/manage/')) return json({error:'Niet gevonden.'},404);
       if (!(await authorized(request,env))) return json({error:'Ongeldige of ontbrekende beheersleutel.'},401);
       if(path==='/api/manage/links' || path.startsWith('/api/manage/links/')) {
         const result=await manageLinks(request,env.DB,path,payload);
+        if(result?.conflict) return json({error:'Deze link is ondertussen gewijzigd. Vernieuw de lijst en kies bij deze link opnieuw Aanpassen om de nieuwste versie te bekijken.'},409);
+        if(result?.duplicate) return json({error:'Deze omschrijving en link bestaan al.'},409);
         if(result?.missing) return json({error:'Deze link is al verwijderd of bestaat niet.'},404);
         if(result) return json(result,method==='POST' ? 201 : 200);
       }

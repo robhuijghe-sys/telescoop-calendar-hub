@@ -13,7 +13,7 @@ test('beheerscherm: aanmaken, zoekopdracht, annuleren en bevestigen van verwijde
   get('search').scrollIntoView=()=>{};
   Object.defineProperty(get('category'),'value',{value:'algemeen',writable:true});
   let accept=false, offline=false;
-  const context={document,URLSearchParams,location:{hash:'',pathname:'/beheer'},history:{replaceState(){}},sessionStorage:{getItem(){return null;},setItem(){}},confirm:()=>accept,
+  const context={document,URLSearchParams,AbortSignal,location:{hash:'',pathname:'/beheer'},history:{replaceState(){}},sessionStorage:{getItem(){return null;},setItem(){}},confirm:()=>accept,
     fetch:(path,options)=>{if(offline)throw new Error('Verbinding verbroken.');return worker.fetch(new Request('https://example.workers.dev'+path,options),env);}};
   runInNewContext(html.match(/<script type="module">([\s\S]*?)<\/script>/)[1],context);
   get('key').value='a'.repeat(64);
@@ -31,13 +31,13 @@ test('beheerscherm: aanmaken, zoekopdracht, annuleren en bevestigen van verwijde
   accept=true;await button.onclick();assert.ok(sqlite.prepare('SELECT deleted_at FROM calendar_items').get().deleted_at);
   assert.equal(get('items').querySelector('button.danger'),null);
   offline=true;get('prompt').value='Voeg morgen overleg toe';await get('interpret').onclick();
-  assert.match(get('notice').textContent,/Verbinding verbroken/);assert.equal(get('interpret').disabled,false);
+  assert.match(get('notice').textContent,/Geen bevestiging ontvangen/);assert.equal(get('interpret').disabled,false);
 });
 
 test('links beheren: toevoegen, aanpassen, annuleren, verwijderen en netwerkfout',async()=>{
   const {env,sqlite}=harness(),html=renderManager(),{document}=parseHTML(html),get=id=>document.getElementById(id);
   let accept=false,offline=false;
-  runInNewContext(html.match(/<script type="module">([\s\S]*?)<\/script>/)[1],{document,URLSearchParams,location:{hash:'',pathname:'/beheer'},history:{replaceState(){}},sessionStorage:{getItem(){return null;},setItem(){}},confirm:()=>accept,fetch:(path,options)=>{if(offline)throw new Error('Offline');return worker.fetch(new Request('https://example.workers.dev'+path,options),env);}});
+  runInNewContext(html.match(/<script type="module">([\s\S]*?)<\/script>/)[1],{document,URLSearchParams,AbortSignal,location:{hash:'',pathname:'/beheer'},history:{replaceState(){}},sessionStorage:{getItem(){return null;},setItem(){}},confirm:()=>accept,fetch:(path,options)=>{if(offline)throw new Error('Offline');return worker.fetch(new Request('https://example.workers.dev'+path,options),env);}});
   get('key').value='a'.repeat(64);get('useKey').onclick();
   for(let i=0;i<50 && get('app').hidden;i++) await new Promise(r=>setTimeout(r,2));
   const submit=()=>get('linkForm').onsubmit({preventDefault(){}});
@@ -49,5 +49,5 @@ test('links beheren: toevoegen, aanpassen, annuleren, verwijderen en netwerkfout
   await get('links').querySelector('.danger').onclick();assert.equal(sqlite.prepare('SELECT deleted_at FROM calendar_links').get().deleted_at,null);
   accept=true;await get('links').querySelector('.danger').onclick();assert.ok(sqlite.prepare('SELECT deleted_at FROM calendar_links').get().deleted_at);
   offline=true;get('linkDescription').value='Bewaard concept';get('linkUrl').value='https://example.org';await submit();
-  assert.equal(get('linkDescription').value,'Bewaard concept');assert.match(get('notice').textContent,/Offline/);assert.equal(get('linkSave').disabled,false);
+  assert.equal(get('linkDescription').value,'Bewaard concept');assert.match(get('notice').textContent,/Geen bevestiging ontvangen/);assert.equal(get('linkSave').disabled,false);
 });

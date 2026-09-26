@@ -68,4 +68,23 @@ Tijdens een tweede beoordeling zijn hersteld:
 - invoer wordt op type, toegestane categorie en maximale hoeveelheid bytes gecontroleerd;
 - de gezondheidscontrole controleert de echte database en het aanwezige schema.
 
-Twaalf gerichte tests slagen, inclusief het beheerschermpad toevoegen → zoeken → verwijderen annuleren → verwijderen bevestigen en een lijst met 2005 items. De Worker is met Wrangler 4.141.0 succesvol gebundeld via `deploy --dry-run`, zonder publicatie. De online Cloudflare- en Smartschool-controle moet nog plaatsvinden na aansluiting van het account en de database-import.
+Achttien gerichte tests slagen, inclusief het beheerschermpad toevoegen → zoeken → verwijderen annuleren → verwijderen bevestigen en een lijst met 2005 items. De Worker is met Wrangler 4.141.0 succesvol gebundeld via `deploy --dry-run`, zonder publicatie. De online Cloudflare- en Smartschool-controle moet nog plaatsvinden na aansluiting van het account en de database-import.
+
+
+## Tweede controle en optimalisatie — 26 september 2026
+
+- Publieke link `🔗 Kalender wijzigen` onder het logo, met dezelfde opmaak als de verwijzingen. Deze opent `/beheer` in een nieuw tabblad en bevat nooit de sleutel.
+- Aptos als eerste lettertype; Roboto als reserve, geleverd vanaf dezelfde host (normaal en vet, samen circa 44 kB WOFF2). Aptos zelf vereist lokale beschikbaarheid; het wordt niet meegeleverd. Roboto is verkleind tot Latijnse tekens en gebruikt de bijgevoegde SIL Open Font License. Bron: Google Fonts, https://github.com/google/fonts/tree/main/ofl/roboto.
+- De beheerpagina toont de juiste iframe-plakcode op basis van de daadwerkelijk geopende host, zonder placeholders of sleutels.
+- Een databaseversie verandert atomair bij elke kalender-, link- of opmaakwijziging. De leesroute controleert één versierecord; bij een cachehit worden de 401 kalenderregels niet opnieuw gelezen of gerenderd. ETag-validatie geeft een 304 zonder HTML-body bij ongewijzigde inhoud. De cache is optioneel en cachefouten blokkeren de kalender niet.
+- Worker-versie en een database-ID in de cachesleutel voorkomen hergebruik van HTML na een nieuwe deployment of databasewissel. De browser valideert bij elke nieuwe paginalaad; de bestaande verversing blijft 1800 seconden.
+- Linkversies voorkomen overschrijven vanuit verouderde beheerschermen. Dubbele links worden geweigerd. Mislukte aanvragen houden ingevoerde teksten vast; de melding vraagt de lijst te verversen wanneer een opslagbevestiging ontbreekt.
+- Handmatig invullen, lijst vernieuwen, beheer afsluiten en zichtbare statusmeldingen toegevoegd.
+- Nederlandse notaties zoals `15.30u`, `van 9 tot 10 uur` en `haal overleg morgen weg.` hersteld. Overgeërfde celkleuren blijven bij import behouden.
+
+Controles: 18 geautomatiseerde tests, syntaxiscontrole, Wrangler dry-run en een echte lokale workerd/D1-run met de volledige import (HTTP 200 en conditionele HTTP 304). De tests controleren ook cache-invalidatie, conflicterende wijzigingen en de gegenereerde Smartschool-code. De online Cloudflare-publicatie en visuele Smartschool-controle zijn nog niet uitgevoerd. De gebruikte omgeving heeft geen Cloudflare-aanmelding; het dashboard blijft hier op de beveiligingscontrole staan.
+
+Deze versie verwacht een nieuwe database met de volledige `schema.sql`. Een oudere proefdatabase zonder `calendar_links.version` moet afzonderlijk worden gemigreerd; `CREATE TABLE IF NOT EXISTS` voegt geen kolommen toe. Gebruik voor ingebruikname de nieuw aangemaakte D1-database zoals hierboven beschreven.
+
+Cache API-documentatie: https://developers.cloudflare.com/workers/runtime-apis/cache/
+Versie-binding: https://developers.cloudflare.com/workers/runtime-apis/bindings/version-metadata/
