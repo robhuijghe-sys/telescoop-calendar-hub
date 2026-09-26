@@ -42,42 +42,99 @@ export function renderCalendar(items, options={}) {
 export function renderManager() {
   // The editor key is only ever read from the URL fragment. Fragments never reach HTTP logs.
   return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Kalender beheren · De Telescoop</title><style>${BASE_CSS}body{background:#f7f5f1}.wrap{max-width:800px}.panel{background:#fff;border:1px solid #e5dfd8;border-radius:14px;padding:18px;margin:16px 0}.panel h2{margin:0 0 10px;font-size:1.2rem}.fields{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}label{display:block;font-size:.9rem;margin:9px 0 4px}input,textarea,select{font:inherit;width:100%;padding:10px;border:1px solid #c9c2bd;border-radius:7px;background:#fff}textarea{min-height:82px}button{font:inherit;background:#203555;color:white;padding:10px 14px;border:0;border-radius:8px;cursor:pointer}button.danger{background:#8a2f2f}button:disabled{opacity:.5}.result{padding:10px 12px;margin:10px 0;border-radius:8px;background:#f0f4fa}.row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-top:1px solid #eee}.row span{overflow-wrap:anywhere}@media(max-width:550px){.fields{grid-template-columns:1fr}.row{align-items:flex-start}}
-  </style></head><body><main class="wrap"><header class="top"><span class="brand">Kalender beheren</span><a href="/smartschool-calendar">Bekijk kalender</a></header><section class="panel" id="keyPanel"><h2>Beheersleutel</h2><p>Open de persoonlijke beheerlink of vul de sleutel hier in.</p><input id="key" type="password" autocomplete="off"><p><button id="useKey">Verder</button></p></section><div id="app" hidden><section class="panel"><h2>Kalenderitem toevoegen</h2><label for="prompt">Beschrijf de afspraak in gewone taal</label><textarea id="prompt" placeholder="Bijvoorbeeld: Voeg op 6 oktober om 15.30 teamvergadering toe"></textarea><p><button id="interpret">Interpreteren</button></p><div id="preview" hidden><p id="assumptions" class="result"></p><div class="fields"><div><label for="date">Datum</label><input id="date" type="date"></div><div><label for="title">Tekst in kalender</label><input id="title" maxlength="500"></div><div><label for="start">Beginuur (optioneel)</label><input id="start" type="time"></div><div><label for="end">Einduur (optioneel)</label><input id="end" type="time"></div><div><label for="category">Kleur</label><select id="category">${Object.entries(CATEGORIES).map(([k,v])=>`<option value="${k}">${v[1]}</option>`).join('')}</select></div><div><label for="description">Extra regel (optioneel)</label><textarea id="description"></textarea></div></div><p><button id="save">Na controle toevoegen</button></p></div></section><section class="panel"><h2>Kalenderitems verwijderen</h2><p>Zoek een item, kies de juiste regel en bevestig het verwijderen. De wijziging blijft in het auditlog.</p><label for="search">Zoek op datum of tekst</label><input id="search" placeholder="Bijvoorbeeld: 01/12 of directie"><div id="items"></div></section></div><p id="notice" role="status" aria-live="polite"></p></main><script type="module">${MANAGER_JS}</script></body></html>`;
+  </style></head><body><main class="wrap"><header class="top"><span class="brand">Kalender beheren</span><a href="/smartschool-calendar">Bekijk kalender</a></header><section class="panel" id="keyPanel"><h2>Beheersleutel</h2><p>Open de beheerlink of vul de sleutel hier in.</p><label for="key">Beheersleutel</label><input id="key" type="password" autocomplete="off"><p><button id="useKey">Verder</button></p></section><div id="app" hidden><section class="panel"><h2>Kalenderitem toevoegen</h2><label for="prompt">Beschrijf de afspraak in gewone taal</label><textarea id="prompt" placeholder="Bijvoorbeeld: Voeg op 6 oktober om 15.30 teamvergadering toe"></textarea><p><button id="interpret">Interpreteren</button></p><div id="preview" hidden><p id="assumptions" class="result"></p><div class="fields"><div><label for="date">Datum</label><input id="date" type="date"></div><div><label for="title">Tekst in kalender</label><input id="title" maxlength="500"></div><div><label for="start">Beginuur (optioneel)</label><input id="start" type="time"></div><div><label for="end">Einduur (optioneel)</label><input id="end" type="time"></div><div><label for="category">Kleur</label><select id="category">${Object.entries(CATEGORIES).map(([k,v])=>`<option value="${k}">${v[1]}</option>`).join('')}</select></div><div><label for="description">Extra regel (optioneel)</label><textarea id="description"></textarea></div></div><p><button id="save">Na controle toevoegen</button></p></div></section><section class="panel"><h2>Kalenderitems verwijderen</h2><p>Zoek een item, kies de juiste regel en bevestig het verwijderen. De wijziging blijft in het auditlog.</p><label for="search">Zoek op datum of tekst</label><input id="search" placeholder="Bijvoorbeeld: 01/12 of directie"><div id="items"></div></section></div><p id="notice" role="status" aria-live="polite"></p></main><script type="module">${MANAGER_JS}</script></body></html>`;
 }
 
-// Inline module, kept self-contained for one free Worker deployment.
-const MANAGER_JS = `
-  let key = new URLSearchParams(location.hash.slice(1)).get('sleutel') || sessionStorage.getItem('calendarKey') || '';
-  if (location.hash) history.replaceState(null, '', location.pathname);
-  const $ = id => document.getElementById(id);
-  const api = async (path, options={}) => {
-    const response = await fetch(path,{...options,headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json',...(options.headers || {})}});
-    if (!response.ok) { const data=await response.json().catch(()=>({})); throw new Error(data.error || 'De aanvraag is mislukt.'); }
+export function filterItems(items,query) {
+  const normalize=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/afwezigheid/g,'afwezig');
+  const terms=normalize(query).trim().split(/\s+/).filter(Boolean);
+  return items.filter(item=>{
+    const [,month,day]=item.date_local.split('-');
+    const haystack=normalize(`${item.date_local} ${day}/${month} ${Number(day)}/${Number(month)} ${item.title} ${item.description}`);
+    return terms.every(term=>haystack.includes(term));
+  });
+}
+
+function managerBootstrap() {
+  const $=id=>document.getElementById(id);
+  let key=new URLSearchParams(location.hash.slice(1)).get('sleutel') || '';
+  try {key=key || sessionStorage.getItem('calendarKey') || '';} catch {}
+  if(location.hash) history.replaceState(null,'',location.pathname);
+  let items=[], visibleCount=100;
+  const say=message=>{$('notice').textContent=message;};
+  const api=async(path,options={})=>{
+    const response=await fetch(path,{...options,headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'}});
+    if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error || 'De aanvraag is mislukt.');}
     return response.json();
   };
-  let items=[];
-  const say = message => { $('notice').textContent=message; };
-  const open = async () => { try {const result=await api('/api/manage/items'); items=result.items;sessionStorage.setItem('calendarKey',key);$('keyPanel').hidden=true;$('app').hidden=false;showItems();}catch(e){$('keyPanel').hidden=false;$('app').hidden=true;say(e.message);} };
-  $('useKey').onclick=()=>{key=$('key').value.trim();open();};
-  if (key) open();
-  $('interpret').onclick=async()=>{
-    const prompt=$('prompt').value.trim(); if (!prompt) return say('Schrijf eerst wat je wilt doen.');
-    if (/^\\s*(?:verwijder|wis)\\b|^\\s*haal\\b.+\\bweg\\s*$/i.test(prompt)) {
-      const parsed=await api('/api/manage/interpret',{method:'POST',body:JSON.stringify({text:prompt})});
-      $('search').value=parsed.date ? parsed.date+' '+parsed.title : parsed.title;
-      showItems();$('search').scrollIntoView({behavior:'smooth'});say('Kies hieronder het juiste item en bevestig de verwijdering.');return;
-    }
-    const result=await api('/api/manage/interpret',{method:'POST',body:JSON.stringify({text:prompt})});
-    $('preview').hidden=false;$('title').value=result.title;$('date').value=result.date;$('start').value=result.start_time;$('end').value=result.end_time;$('category').value=result.category;
-    $('assumptions').textContent=result.missing.length ? 'Vul nog aan: '+result.missing.join(', ') : (result.assumptions.join('; ') || 'Controleer de gegevens vóór het toevoegen.');
-  };
-  $('save').onclick=async()=>{try{
-    const payload={title:$('title').value.trim(),date_local:$('date').value,start_time:$('start').value,end_time:$('end').value,category:$('category').value,description:$('description').value.trim()};
-    await api('/api/manage/items',{method:'POST',body:JSON.stringify(payload)});$('preview').hidden=true;$('prompt').value='';$('description').value='';items=(await api('/api/manage/items')).items;showItems();say('Kalenderitem toegevoegd. Het staat meteen in de kalender.');
-  }catch(e){say(e.message);}};
-  function showItems(){const q=$('search').value.trim().toLocaleLowerCase('nl');const list=items.filter(x=>!q || (x.date_local+' '+x.date_local.slice(8,10)+'/'+x.date_local.slice(5,7)+' '+x.title+' '+x.description).toLocaleLowerCase('nl').includes(q));const box=$('items');box.replaceChildren();
-    for(const item of list.slice(0,200)){const row=document.createElement('div');row.className='row';const name=document.createElement('span');name.textContent=item.date_local+' · '+(item.start_time ? item.start_time+' · ':'')+item.title;const button=document.createElement('button');button.className='danger';button.textContent='Verwijderen';button.onclick=async()=>{if(!confirm('Verwijder "'+item.title+'" op '+item.date_local+' uit de kalender?'))return;button.disabled=true;try{await api('/api/manage/items/'+item.id,{method:'DELETE'});items=items.filter(x=>x.id!==item.id);showItems();say('Item verwijderd uit de kalender.');}catch(e){button.disabled=false;say(e.message);}};row.append(name,button);box.append(row);}
-    if(!list.length)box.textContent='Geen overeenkomende items.';
+  const sortItems=()=>items.sort((a,b)=>a.date_local.localeCompare(b.date_local) || a.start_time.localeCompare(b.start_time) || a.id-b.id);
+  async function open() {
+    $('useKey').disabled=true;
+    try {
+      let after=0, collected=[];
+      do {
+        const result=await api('/api/manage/items?after='+after);
+        collected.push(...result.items);
+        if(result.next_cursor===null) break;
+        if(!Number.isSafeInteger(result.next_cursor) || result.next_cursor<=after) throw new Error('De lijst kon niet volledig worden geladen.');
+        after=result.next_cursor;
+      } while(true);
+      items=collected;sortItems();
+      try {sessionStorage.setItem('calendarKey',key);} catch {}
+      $('keyPanel').hidden=true;$('app').hidden=false;showItems();say('');
+    } catch(e){$('keyPanel').hidden=false;$('app').hidden=true;say(e.message);}
+    finally {$('useKey').disabled=false;}
   }
-  $('search').oninput=showItems;
-`;
+  $('useKey').onclick=()=>{key=$('key').value.trim();open();};
+  if(key) open();
+  $('interpret').onclick=async()=>{
+    const prompt=$('prompt').value.trim();
+    if(!prompt) return say('Schrijf eerst wat je wilt doen.');
+    $('interpret').disabled=true;$('preview').hidden=true;
+    try {
+      const parsed=await api('/api/manage/interpret',{method:'POST',body:JSON.stringify({text:prompt})});
+      if(parsed.action==='delete') {
+        $('search').value=[parsed.date,parsed.title].filter(Boolean).join(' ');visibleCount=100;
+        showItems();$('search').scrollIntoView({behavior:'smooth'});
+        say([...(parsed.assumptions || []),'Kies hieronder het juiste item en bevestig de verwijdering.'].join('. '));return;
+      }
+      $('preview').hidden=false;$('title').value=parsed.title;$('date').value=parsed.date;
+      $('start').value=parsed.start_time;$('end').value=parsed.end_time;$('category').value=parsed.category;$('description').value='';
+      $('assumptions').textContent=[parsed.missing.length ? 'Vul nog aan: '+parsed.missing.join(', ') : 'Controleer de gegevens vóór het toevoegen.',...(parsed.assumptions || [])].join(' ');
+      say('');
+    } catch(e){say(e.message);}
+    finally {$('interpret').disabled=false;}
+  };
+  $('save').onclick=async()=>{
+    $('save').disabled=true;
+    try {
+      const item={title:$('title').value.trim(),date_local:$('date').value,start_time:$('start').value,end_time:$('end').value,category:$('category').value,description:$('description').value.trim()};
+      const result=await api('/api/manage/items',{method:'POST',body:JSON.stringify(item)});
+      items.push({...item,id:result.id,source:'manual'});sortItems();
+      $('preview').hidden=true;$('prompt').value='';$('description').value='';showItems();
+      say('Kalenderitem opgeslagen. Openstaande kalenders verversen binnen 30 minuten.');
+    } catch(e){say(e.message);}
+    finally {$('save').disabled=false;}
+  };
+  function showItems() {
+    const list=filterItems(items,$('search').value), box=$('items');box.replaceChildren();
+    const status=document.createElement('p');status.className='small';
+    status.textContent=list.length ? `${Math.min(visibleCount,list.length)} van ${list.length} items` : 'Geen overeenkomende items.';box.append(status);
+    for(const item of list.slice(0,visibleCount)) {
+      const row=document.createElement('div');row.className='row';
+      const name=document.createElement('span');name.textContent=item.date_local+' · '+(item.start_time ? item.start_time+' · ':'')+item.title;
+      const button=document.createElement('button');button.className='danger';button.textContent='Verwijderen';
+      button.onclick=async()=>{
+        if(!confirm('Verwijder "'+item.title+'" op '+item.date_local+' uit de kalender?')) return;
+        button.disabled=true;
+        try {await api('/api/manage/items/'+item.id,{method:'DELETE'});items=items.filter(x=>x.id!==item.id);showItems();say('Item verwijderd. Openstaande kalenders verversen binnen 30 minuten.');}
+        catch(e){button.disabled=false;say(e.message);}
+      };
+      row.append(name,button);box.append(row);
+    }
+    if(list.length>visibleCount){const more=document.createElement('button');more.textContent='Toon meer';more.onclick=()=>{visibleCount+=100;showItems();};box.append(more);}
+  }
+  $('search').oninput=()=>{visibleCount=100;showItems();};
+}
+
+const MANAGER_JS=`const filterItems=${filterItems.toString()}; (${managerBootstrap.toString()})();`;

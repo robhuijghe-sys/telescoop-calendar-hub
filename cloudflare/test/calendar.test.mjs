@@ -1,29 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import {createHash} from 'node:crypto';
-import {DatabaseSync} from 'node:sqlite';
 import worker from '../src/worker.mjs';
 import {parseInstruction} from '../src/parser.mjs';
-import {renderCalendar, REFRESH_SECONDS} from '../src/pages.mjs';
+import {renderCalendar, REFRESH_SECONDS, filterItems} from '../src/pages.mjs';
 
 const TOKEN='a'.repeat(64);
-function harness() {
-  const sqlite=new DatabaseSync(':memory:');
-  sqlite.exec(readFileSync(new URL('../schema.sql',import.meta.url),'utf8'));
-  const DB={prepare(sql){return {bind(...args){const statement=sqlite.prepare(sql);return {
-    async all(){return {results:statement.all(...args)};},
-    async first(){return statement.get(...args) || null;},
-    async run(){const result=statement.run(...args);return {meta:{changes:Number(result.changes)}};}
-  };}}}};
-  const env={DB,EDITOR_TOKEN_SHA256:createHash('sha256').update(TOKEN).digest('hex')};
-  async function call(path,method='GET',body,token=TOKEN){
-    const headers=token ? {Authorization:`Bearer ${token}`} : {};
-    if(body) headers['Content-Type']='application/json';
-    return worker.fetch(new Request('https://example.workers.dev'+path,{method,headers,body:body?JSON.stringify(body):undefined}),env);
-  }
-  return {call,sqlite};
-}
+import {harness} from './support.mjs';
 
 test('30 minuten en Nederlandse datum, uur en kleur',()=>{
   assert.equal(REFRESH_SECONDS,1800);
@@ -70,4 +52,50 @@ test('invoer wordt gevalideerd en kalendertekst wordt ontsmet',async()=>{
   const page=renderCalendar([{date_local:'2026-10-01',title:'<script>alert(1)</script>',description:'',category:'algemeen',start_time:'',end_time:''}]);
   assert.doesNotMatch(page,/<script>alert/);
   assert.match(page,/&lt;script&gt;/);
+});
+
+test('titels blijven intact, ongeldige uren zijn zichtbaar en verwijdering kiest geen volgend jaar',()=>{
+  const now=new Date('2026-09-26T09:00:00Z');
+  assert.equal(parseInstruction('Voeg De Klas van Morgen op 6 oktober toe',now).title,'De Klas van Morgen');
+  assert.equal(parseInstruction('Voeg De Klas van Morgen toe',now).date,'');
+  assert.equal(parseInstruction('Haal op 1 september directie afwezig weg',now).date,'2026-09-01');
+  assert.equal(parseInstruction('Haal op 1 december directie afwezig weg',now).title,'Directie afwezig');
+  const invalid=parseInstruction('Voeg op 6 oktober om 15.99 overleg toe',now);
+  assert.equal(invalid.start_time,'');assert.ok(invalid.missing.includes('geldige tijd'));
+  assert.equal(parseInstruction('Voeg morgen om 8u30 overleg toe',now).start_time,'08:30');
+  assert.equal(parseInstruction('Voeg op 2026-10-06 overleg toe',now).date,'2026-10-06');
+});
+
+test('verwijderzoekopdracht combineert datum en losse zoekwoorden',()=>{
+  const items=[{date_local:'2026-12-01',title:'Directie afwezig',description:''},{date_local:'2026-12-02',title:'Directie afwezig',description:''}];
+  assert.equal(filterItems(items,'2026-12-01 Afwezigheid directie').length,1);
+  assert.equal(filterItems(items,'01/12 directie').length,1);
+  assert.equal(filterItems(items,'1/12 directie').length,1);
+});
+
+test('meer dan 2000 items blijven bereikbaar en zichtbaar',async()=>{
+  const {call,sqlite}=harness();
+  const insert=sqlite.prepare("INSERT INTO calendar_items(date_local,title,source,created_at) VALUES(?,?,?,?)");
+  sqlite.exec('BEGIN');
+  for(let i=0;i<2005;i++) insert.run('2026-12-01','Item '+i,'legacy','now');
+  sqlite.exec('COMMIT');
+  const ids=[];let cursor=0;
+  do {const result=await (await call('/api/manage/items?after='+cursor)).json();ids.push(...result.items.map(x=>x.id));cursor=result.next_cursor;} while(cursor!==null);
+  assert.equal(ids.length,2005);assert.equal(new Set(ids).size,2005);
+  const page=await (await call('/smartschool-calendar')).text();assert.match(page,/Item 2004/);
+});
+
+test('gezondheidscontrole en strengere invoer- en sleutelcontrole',async()=>{
+  const {call,sqlite,env}=harness();
+  assert.equal((await call('/api/manage/items','GET',undefined,'b'.repeat(64))).status,401);
+  for(const extra of [{category:'constructor'},{category:'__proto__'},{title:{value:'Test'}}]) {
+    assert.equal((await call('/api/manage/items','POST',{title:'Test',date_local:'2026-10-01',...extra})).status,400);
+  }
+  const oversized=new Request('https://example.workers.dev/api/manage/interpret',{method:'POST',headers:{Authorization:'Bearer '+TOKEN},body:JSON.stringify({text:'漢'.repeat(6000)})});
+  assert.equal((await worker.fetch(oversized,env)).status,400);
+  assert.equal((await call('/health')).status,200);
+  const calendar=await call('/smartschool-calendar');
+  assert.doesNotMatch(calendar.headers.get('Content-Security-Policy'),/frame-ancestors/);
+  sqlite.exec('DROP TABLE calendar_items');
+  assert.equal((await call('/health')).status,503);
 });

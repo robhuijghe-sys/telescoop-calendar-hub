@@ -41,4 +41,19 @@ De uiteindelijke HTML is de gezaghebbende bron voor de volledige oorspronkelijke
 
 ## Lokaal controleren
 
-`npm test` controleert toevoegen, datumverwerking, dubbelingen, leesweergave, rechten, soft delete en audit. `npm run check` controleert de JavaScript-syntaxis. Deze controles gebruiken Node en een SQLite-database in het geheugen en vereisen geen betalende dienst.
+Voer eerst `npm ci` uit (Node 24 of nieuwer). `npm test` controleert toevoegen, datumverwerking, dubbelingen, leesweergave, rechten, soft delete en audit. De beheerschermtest voert de werkelijke JavaScript-code uit in een nagebootste browser-DOM (Linkedom), gekoppeld aan de API en SQLite. Dit is geen visuele test in Smartschool. `npm run check` controleert de JavaScript-syntaxis. De kalender zelf heeft geen externe JavaScript-afhankelijkheden nodig.
+
+## Controle van 26 september 2026
+
+Tijdens een tweede beoordeling zijn hersteld:
+
+- zoeken om te verwijderen combineert datum en losse zoekwoorden; “haal … weg” wordt herkend;
+- titelwoorden zoals “van” in “De Klas van Morgen” blijven behouden;
+- ongeldige uren, bijvoorbeeld 15.99, worden niet stilzwijgend als 15:00 geïnterpreteerd;
+- bij verwijderen wordt een voorbije datum zonder jaartal niet automatisch naar volgend jaar verschoven;
+- lange lijsten zijn gepagineerd in het beheer en via “Toon meer” volledig bereikbaar; de leesweergave wordt niet na 2000 items afgebroken;
+- netwerkfouten krijgen een zichtbare melding; knoppen zijn tijdens een aanvraag geblokkeerd;
+- invoer wordt op type, toegestane categorie en maximale hoeveelheid bytes gecontroleerd;
+- de gezondheidscontrole controleert de echte database en het aanwezige schema.
+
+Negen gerichte tests slagen, inclusief het beheerschermpad toevoegen → zoeken → verwijderen annuleren → verwijderen bevestigen en een lijst met 2005 items. De Worker is met Wrangler 4.141.0 succesvol gebundeld via `deploy --dry-run`, zonder publicatie. De online Cloudflare- en Smartschool-controle moet nog plaatsvinden na aansluiting van het account en verwerking van de actuele HTML.

@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS calendar_items (
   created_at TEXT NOT NULL,
   deleted_at TEXT
 );
-CREATE INDEX IF NOT EXISTS items_visible_date ON calendar_items(deleted_at,date_local,id);
+CREATE INDEX IF NOT EXISTS items_visible_date ON calendar_items(deleted_at,date_local,start_time,id);
+CREATE INDEX IF NOT EXISTS items_visible_id ON calendar_items(deleted_at,id);
 CREATE UNIQUE INDEX IF NOT EXISTS items_visible_duplicate ON calendar_items(date_local,title COLLATE NOCASE) WHERE deleted_at IS NULL AND source='manual';
 
 CREATE TABLE IF NOT EXISTS audit_log (

@@ -19,13 +19,27 @@ async function authorized(request, env) {
 
 async function payload(request) {
   if (Number(request.headers.get('content-length') || 0) > 16_384) throw new Error('Invoer te groot.');
-  const body = await request.text();
-  if (body.length > 16_384) throw new Error('Invoer te groot.');
+  if (!request.body) throw new Error('Ongeldige invoer.');
+  const reader=request.body.getReader(), chunks=[];
+  let size=0;
+  while (true) {
+    const {done,value}=await reader.read();
+    if(done) break;
+    size+=value.byteLength;
+    if(size>16_384) {await reader.cancel();throw new Error('Invoer te groot.');}
+    chunks.push(value);
+  }
+  const bytes=new Uint8Array(size);let offset=0;
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  const body=new TextDecoder().decode(bytes);
   try {return JSON.parse(body);} catch {throw new Error('Ongeldige invoer.');}
 }
 
 function validItem(item) {
   if (!item || typeof item!=='object' || Array.isArray(item)) throw new Error('Ongeldige invoer.');
+  for (const field of ['title','description','date_local','start_time','end_time','category']) {
+    if(item[field]!==undefined && typeof item[field]!=='string') throw new Error('Ongeldige invoer.');
+  }
   const title = String(item.title ?? '').trim();
   const description = String(item.description ?? '').trim();
   const date = String(item.date_local ?? '');
@@ -36,27 +50,36 @@ function validItem(item) {
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10)!==date) throw new Error('Kies een geldige datum.');
   if ((start && !/^([01]\d|2[0-3]):[0-5]\d$/.test(start)) || (end && !/^([01]\d|2[0-3]):[0-5]\d$/.test(end)) || (end && (!start || end<=start))) throw new Error('Controleer de begin- en eindtijd.');
-  if (!(category in CATEGORIES)) throw new Error('Kies een geldige kleurcategorie.');
+  if (!Object.hasOwn(CATEGORIES,category)) throw new Error('Kies een geldige kleurcategorie.');
   return {title,description,date,start,end,category};
 }
 
-async function visibleItems(db, limit=2000) {
-  const result = await db.prepare('SELECT id,date_local,title,description,start_time,end_time,category,source FROM calendar_items WHERE deleted_at IS NULL ORDER BY date_local,start_time,id LIMIT ?').bind(limit).all();
+async function visibleItems(db) {
+  const result = await db.prepare('SELECT id,date_local,title,description,start_time,end_time,category,source FROM calendar_items WHERE deleted_at IS NULL ORDER BY date_local,start_time,id').bind().all();
   return result.results || [];
 }
 
 export default {
   async fetch(request, env) {
-    const path = new URL(request.url).pathname;
+    const url = new URL(request.url), path=url.pathname;
     const method = request.method;
     if (!env.DB) return json({error:'Database nog niet ingesteld.'},503);
     try {
-      if (method==='GET' && path==='/health') return json({ok:true});
+      if (method==='GET' && path==='/health') {
+        try {await env.DB.prepare('SELECT id FROM calendar_items LIMIT 1').bind().first();return json({ok:true});}
+        catch {return json({ok:false,error:'Database niet gereed.'},503);}
+      }
       if (method==='GET' && path==='/smartschool-calendar') return html(renderCalendar(await visibleItems(env.DB)),true);
       if (method==='GET' && (path==='/beheer' || path==='/')) return html(renderManager());
       if (!path.startsWith('/api/manage/')) return json({error:'Niet gevonden.'},404);
       if (!(await authorized(request,env))) return json({error:'Ongeldige of ontbrekende beheersleutel.'},401);
-      if (method==='GET' && path==='/api/manage/items') return json({items:await visibleItems(env.DB)});
+      if (method==='GET' && path==='/api/manage/items') {
+        const cursor=Number(url.searchParams.get('after') || 0);
+        if(!Number.isSafeInteger(cursor) || cursor<0) return json({error:'Ongeldige paginakeuze.'},400);
+        const {results=[]}=await env.DB.prepare('SELECT id,date_local,title,description,start_time,end_time,category,source FROM calendar_items WHERE deleted_at IS NULL AND id>? ORDER BY id LIMIT 501').bind(cursor).all();
+        const items=results.slice(0,500);
+        return json({items,next_cursor:results.length>500 ? items.at(-1).id : null});
+      }
       if (method==='POST' && path==='/api/manage/interpret') {
         const body = await payload(request);
         if (!body || typeof body !== 'object') return json({error:'Ongeldige invoer.'},400);
