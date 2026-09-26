@@ -22,11 +22,23 @@ def time_key(text):
 
 def ordered_fragments(fragments):
     texts = [BeautifulSoup(f, 'html.parser').get_text(' ', strip=True) for f in fragments]
-    absent = [i for i,t in enumerate(texts) if ABSENCE.search(t)]
+    meetings, stages, meeting_for = {}, [], None
+    attached = set()
+    for i, text in enumerate(texts):
+        if re.search(r'\b(?:team|personeels|vakgroep)?vergadering\b', text, re.I):
+            meetings[i] = []
+            meeting_for = i
+        elif re.search(r'\bstage(?:s|stagiair)?\b|\bstagiair', text, re.I):
+            stages.append(i)
+        elif meeting_for is not None and (re.match(r'^[*•–-]\s*', text) or re.search(r'\bagendapunt(?:en)?\b', text, re.I)):
+            meetings[meeting_for].append(i)
+            attached.add(i)
+    bottom = set(meetings) | set(stages) | attached
+    absent = [i for i,t in enumerate(texts) if i not in bottom and ABSENCE.search(t)]
     groups = {i: [] for i in absent}
     rest, loose = [], []
     for i,text in enumerate(texts):
-        if i in groups:
+        if i in groups or i in bottom:
             continue
         if not REPLACEMENT.search(text):
             rest.append(i)
@@ -46,4 +58,8 @@ def ordered_fragments(fragments):
         order.extend(sorted(groups[a], key=lambda i: time_key(texts[i])))
     order.extend(sorted(loose, key=lambda i: time_key(texts[i])))
     order.extend(sorted(rest, key=lambda i: time_key(texts[i])))
+    order.extend(sorted(stages, key=lambda i: time_key(texts[i])))
+    for meeting in sorted(meetings, key=lambda i: time_key(texts[i])):
+        order.append(meeting)
+        order.extend(meetings[meeting])
     return [fragments[i] for i in order]
