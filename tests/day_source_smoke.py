@@ -19,15 +19,15 @@ editor.datetime=snapshot.datetime=Clock
 with TestClient(editor.app) as c:
     c.post('/kalender-regel/basis:2',data={'version':'1','date':'2026-10-01','body_html':'User change'})
     c.post('/kalender-verwijderen/basis:3',data={'version':'1'})
-    c.post('/kalender-toevoegen',data={'date':'2026-10-01','lines':'Manual'})
+    c.post('/kalender-toevoegen',follow_redirects=False, data={'date':'2026-10-01','lines':'Manual'})
     seed={'digest':'a'*64,'layout':{'entries':[{'date':'2026-10-01','html':''}], 'focus':{}},'lines':[{'date_local':'2026-10-01','body_html':x,'title':x} for x in ['New source','Changed','Deleted']], 'links':[]}
     os.environ['CALENDAR_SOURCE_GZ_B64']=base64.b64encode(gzip.compress(json.dumps(seed).encode())).decode()
     editor.setup_editor()
     assert {r['title'] for r in editor.rows_all()}=={'User change','Manual','New source'}
     editor.setup_editor()
     assert len(editor.rows_all())==3
-    c.post('/public/create',data={'date':'2026-10-01','title':'Extra event'})
-    c.post('/kalender-toevoegen',data={'date':'2026-10-02','lines':'Adjacent'})
+    c.post('/public/create',follow_redirects=False, data={'date':'2026-10-01','title':'Extra event'})
+    c.post('/kalender-toevoegen',follow_redirects=False, data={'date':'2026-10-02','lines':'Adjacent'})
     # Today stays visible until Belgian midnight, then both desktop/mobile hide it.
     Clock.current='2026-10-01T21:59:59+00:00'
     before=c.get('/smartschool-calendar')
@@ -43,11 +43,11 @@ with TestClient(editor.app) as c:
     assert 'data-calendar-date="2026-10-01"' not in c.get('/smartschool-calendar').text
     assert c.post('/kalender-regel/basis:2',data={'version':'2','date':'2026-10-01','body_html':'Stale'}).status_code==404
     c.post('/kalender-dag-verwijderen',data={'date':'2026-10-01'})
-    c.post('/public/create',data={'date':'2026-10-01','title':'Extra event'})
+    c.post('/public/create',follow_redirects=False, data={'date':'2026-10-01','title':'Extra event'})
     assert 'data-calendar-date="2026-10-01"' in c.get('/smartschool-calendar').text
     assert {r['title'] for r in editor.rows_all()}=={'Extra event','Adjacent'}
     c.post('/kalender-dag-verwijderen',data={'date':'2026-10-01'})
-    c.post('/kalender-toevoegen',data={'date':'2026-10-01','lines':'Restored with new lines'})
+    c.post('/kalender-toevoegen',follow_redirects=False, data={'date':'2026-10-01','lines':'Restored with new lines'})
     assert {r['title'] for r in editor.rows_all()}=={'Restored with new lines','Adjacent'}
     editor.setup_editor()
     assert len(editor.rows_all())==2

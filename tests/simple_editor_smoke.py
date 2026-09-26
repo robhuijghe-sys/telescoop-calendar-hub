@@ -27,14 +27,14 @@ with TestClient(app) as client:
     assert 'https://telescoop-sgr8.smartschool.be/deeplink/123' in first.text
     assert client.get('/smartschool-calendar', headers={'If-None-Match': first.headers['etag']}).status_code == 304
     assert client.get('/calendar-fonts/roboto-latin-400.woff2').status_code == 200
-    assert client.post('/kalender-toevoegen', data={'date': '2026-10-02', 'lines': 'Lien afwezig\nJorge neemt LO over\nVeronica begeleidt L1'}).status_code == 200
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-02', 'lines': 'Lien afwezig\nJorge neemt LO over\nVeronica begeleidt L1'}).status_code == 303
     assert len(rows_all()) == 5
     # Lost-response retry does not duplicate a batch.
-    client.post('/kalender-toevoegen', data={'date': '2026-10-02', 'lines': 'Lien afwezig\nJorge neemt LO over\nVeronica begeleidt L1'})
+    client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-02', 'lines': 'Lien afwezig\nJorge neemt LO over\nVeronica begeleidt L1'})
     assert len(rows_all()) == 5
-    assert client.post('/kalender-toevoegen', data={'date': '2026-10-02', 'lines': 'Valid\n' + 'x' * 1001}).status_code == 400
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-02', 'lines': 'Valid\n' + 'x' * 1001}).status_code == 400
     assert len(rows_all()) == 5
-    assert client.post('/kalender-toevoegen', data={'date': '2026-02-31', 'lines': 'Invalid'}).status_code == 400
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-02-31', 'lines': 'Invalid'}).status_code == 400
     row = next(r for r in rows_all() if r['title'] == 'Jorge neemt LO over')
     assert client.post('/kalender-regel/' + row['id'], data={'version': row['version'], 'date': '2026-10-03', 'body_html': '<span onclick="alert(1)">Jorge neemt zwemmen over</span><script>alert(1)</script><a href="javascript:alert(1)">link</a>'}).status_code == 200
     assert client.post('/kalender-regel/' + row['id'], data={'version': row['version'], 'date': '2026-10-03', 'body_html': 'Stale'}).status_code == 409
@@ -49,7 +49,7 @@ with TestClient(app) as client:
     assert len(rows_all()) == 4  # Restart neither reimports nor restores deleted rows.
     # Existing natural-language creation remains public and editable.
     assert client.post('/public/interpret', data={'prompt': 'Voeg op 6 oktober om 15.30 teamvergadering toe'}).status_code == 200
-    assert client.post('/public/create', data={'title': 'Teamvergadering', 'date': '2026-10-06', 'start_time': '15:30', 'category': 'personeel'}).status_code == 200
+    assert client.post('/public/create', follow_redirects=False, data={'title': 'Teamvergadering', 'date': '2026-10-06', 'start_time': '15:30', 'category': 'personeel'}).status_code == 303
     event = next(r for r in rows_all() if r['title'] == 'Teamvergadering')
     assert event['id'].startswith('event:')
     assert client.get('/kalender-regel/' + event['id']).status_code == 200
@@ -66,17 +66,25 @@ with TestClient(app) as client:
     assert 'Nieuwe link' not in client.get('/smartschool-calendar').text
     assert client.post('/kalender-link/0', data={'description': 'Unsafe', 'url': 'javascript:alert(1)'}).status_code == 400
     assert client.get('/smartschool-calendar', headers={'If-None-Match': first.headers['etag']}).status_code == 200
-    assert client.post('/kalender-toevoegen', data={'date': '2026-10-02', 'lines': 'Cross site'}, headers={'Origin': 'https://unrelated.example'}).status_code == 403
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-02', 'lines': 'Cross site'}, headers={'Origin': 'https://unrelated.example'}).status_code == 403
     assert '<strong>' in split_lines('<span>Text <strong>bold</strong></span><br>next')[0]
 
     before_count = len(rows_all())
     assert 'placeholder="VM: K3: uitstap naar plantentuin"' in client.get('/').text
-    assert client.post('/kalender-toevoegen', data={'date': '2026-10-08', 'structured': '1', 'lines': 'vm - k3 - uitstap naar plantentuin\n09:30: L2: bibliotheek'}).status_code == 200
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'vm - k3 - uitstap naar plantentuin\n09:30: L2: bibliotheek'}).status_code == 303
     assert len(rows_all()) == before_count + 2
     assert any(r['title'] == 'VM: K3: uitstap naar plantentuin' for r in rows_all())
     assert any(r['title'] == '09:30: L2: bibliotheek' for r in rows_all())
-    assert client.post('/kalender-toevoegen', data={'date': '2026-10-08', 'structured': '1', 'lines': 'NM: L1: klas\nOnvolledige regel'}).status_code == 400
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'NM: L1: klas\nOnvolledige regel'}).status_code == 400
     assert len(rows_all()) == before_count + 2
+
+    for origin in ('null', 'https://telescoop-sgr8.smartschool.be', 'https://testserver'):
+        response = client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-09', 'lines': 'Origin ' + origin}, headers={'Origin': origin})
+        assert response.status_code == 303
+        assert response.headers['location'] == 'https://telescoop-sgr8.smartschool.be/'
+    response = client.post('/public/create', follow_redirects=False, data={'date': '2026-10-10', 'title': 'Redirect check'}, headers={'Origin': 'null'})
+    assert response.status_code == 303 and response.headers['location'] == 'https://telescoop-sgr8.smartschool.be/'
+    assert client.get('/').headers['referrer-policy'] == 'same-origin'
 
 print('TCH_SIMPLE_EDITOR_SMOKE_TEST=PASS')
 temp.cleanup()

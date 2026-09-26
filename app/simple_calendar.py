@@ -27,6 +27,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 
 BUILD = 'railway-editor-20260926-v2'
 REFRESH_SECONDS = 7200
+SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
 original_snapshot = snapshot._load_snapshot
 original_links = snapshot._top_links_html
@@ -212,16 +213,21 @@ app.mount('/calendar-fonts', StaticFiles(directory=Path(__file__).parent / 'stat
 async def editor_headers(request: Request, call_next):
     if request.method == 'POST' and request.url.path.startswith(('/kalender-', '/public/')):
         origin = request.headers.get('origin')
-        if origin and origin not in (str(request.base_url).rstrip('/'), core.PUBLIC_BASE_URL):
+        allowed_origins = {str(request.base_url).rstrip('/'), 'https://' + request.url.netloc, core.PUBLIC_BASE_URL, SMARTSCHOOL_HOME.rstrip('/')}
+        # Firefox can send Origin: null for forms opened with no-referrer.
+        # This editor is deliberately public and does not use account credentials.
+        if origin and origin != 'null' and origin not in allowed_origins:
             return Response('Open de kalender in een eigen tabblad.', status_code=403)
         if len(await request.body()) > 65536:
             return Response('Invoer te groot.', status_code=413)
     response = await call_next(request)
+    if request.method == 'POST' and request.url.path in ('/public/create', '/kalender-toevoegen') and response.status_code == 303:
+        response.headers['Location'] = SMARTSCHOOL_HOME
     if request.url.path.startswith('/calendar-fonts/'):
         response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     elif request.url.path != '/smartschool-calendar':
         response.headers['Cache-Control'] = 'no-store'
-    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['Referrer-Policy'] = 'same-origin'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 
