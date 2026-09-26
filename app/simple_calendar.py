@@ -222,7 +222,7 @@ async def editor_headers(request: Request, call_next):
             return Response('Invoer te groot.', status_code=413)
     response = await call_next(request)
     if request.method == 'POST' and request.url.path in ('/public/create', '/kalender-toevoegen') and response.status_code == 303:
-        response.headers['Location'] = SMARTSCHOOL_HOME
+        response.headers['Location'] = '/opgeslagen'
     if request.url.path.startswith('/calendar-fonts/'):
         response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
     elif request.url.path != '/smartschool-calendar':
@@ -234,6 +234,14 @@ async def editor_headers(request: Request, call_next):
 
 for route, method in [('/', 'GET'), ('/smartschool-calendar', 'GET'), ('/public/interpret', 'POST'), ('/public/delete', 'POST'), ('/health', 'GET')]:
     public._remove_route(route, method)
+
+
+@app.get('/opgeslagen')
+def saved_confirmation():
+    body = '<div class="card" role="status"><h2>Opgeslagen</h2><p>Je invoer is verwerkt. De activiteit staat in de kalender; identieke regels worden niet dubbel toegevoegd.</p><p>Je keert over enkele seconden terug naar Smartschool.</p><p><a class="btn" href="' + SMARTSCHOOL_HOME + '">Terug naar Smartschool</a></p></div>'
+    doc = page('Activiteit toegevoegd', body)
+    doc = doc.replace('</head>', '<meta http-equiv="refresh" content="4;url=' + SMARTSCHOOL_HOME + '"></head>')
+    return HTMLResponse(doc)
 
 
 @app.get('/health')

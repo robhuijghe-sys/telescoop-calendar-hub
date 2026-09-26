@@ -81,10 +81,18 @@ with TestClient(app) as client:
     for origin in ('null', 'https://telescoop-sgr8.smartschool.be', 'https://testserver'):
         response = client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-09', 'lines': 'Origin ' + origin}, headers={'Origin': origin})
         assert response.status_code == 303
-        assert response.headers['location'] == 'https://telescoop-sgr8.smartschool.be/'
+        assert response.headers['location'] == '/opgeslagen'
     response = client.post('/public/create', follow_redirects=False, data={'date': '2026-10-10', 'title': 'Redirect check'}, headers={'Origin': 'null'})
-    assert response.status_code == 303 and response.headers['location'] == 'https://telescoop-sgr8.smartschool.be/'
+    assert response.status_code == 303 and response.headers['location'] == '/opgeslagen'
     assert client.get('/').headers['referrer-policy'] == 'same-origin'
+
+    confirmation = client.get('/opgeslagen')
+    assert confirmation.status_code == 200 and 'Je invoer is verwerkt' in confirmation.text
+    assert 'content="4;url=https://telescoop-sgr8.smartschool.be/"' in confirmation.text
+    from app.calendar_dynamic import infer_category
+    assert infer_category('VM: L2: uitstap naar plantentuin Meise') == 'uitstap'
+    assert infer_category('Leerkracht afwezig') == 'waarschuwing'
+    assert infer_category('Materiaal klaarleggen') == 'algemeen'
 
 print('TCH_SIMPLE_EDITOR_SMOKE_TEST=PASS')
 temp.cleanup()
