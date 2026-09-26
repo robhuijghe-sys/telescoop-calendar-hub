@@ -178,6 +178,7 @@ def edited_snapshot():
     entries = {e['date']: dict(e) for e in layout['entries']}
     for row in con.execute('SELECT date_local,body_html FROM editor_lines WHERE deleted=0 ORDER BY date_local,id'):
         day = entries.setdefault(row['date_local'], {'date': row['date_local'], 'html': ''})
+        day.setdefault('lines', []).append(row['body_html'])
         day['html'] += ('<br>' if day['html'] else '') + row['body_html']
     con.close()
     layout['entries'] = list(entries.values())

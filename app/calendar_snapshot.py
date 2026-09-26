@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import app.main as core
+from app.day_order import ordered_fragments
 from app.calendar_dynamic import MONTH_NAMES, MONTH_PALETTES, SEASONS, WEEKDAYS, _event_line, _top_links_html
 
 SNAPSHOT_PATH = Path(os.getenv("CALENDAR_SNAPSHOT_PATH", "/data/calendar_snapshot.json"))
@@ -93,6 +94,12 @@ def render_snapshot_calendar(hide_past=False, hidden_dates=()) -> str:
                 pieces.append(f'<div class="base-content">{base["html"]}</div>')
             if ds in dyn:
                 pieces.extend(f'<p class="event-line live-addition">{_event_line(row)}</p>' for row in dyn[ds])
+            if base and 'lines' in base:
+                fragments = [f'<div class="base-content">{line}</div>' for line in base['lines']]
+                fragments.extend(f'<p class="event-line live-addition">{_event_line(row)}</p>' for row in dyn.get(ds, []))
+                pieces = ordered_fragments(fragments)
+            elif ds in dyn:
+                pieces = ordered_fragments(pieces)
             body = "".join(pieces) or '<span class="muted">Nog geen inhoud.</span>'
             event_cell_class = "event-cell live-only" if (not has_base_content and ds in dyn) else "event-cell"
             desktop_rows.append(f'<tr data-calendar-date="{ds}"><td class="date-cell">{html.escape(label)}</td><td class="{event_cell_class}">{body}</td></tr>')
