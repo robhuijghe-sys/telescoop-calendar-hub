@@ -3,7 +3,8 @@ import {CATEGORIES, renderCalendar, renderManager} from './pages.mjs';
 
 const json = (data, status=200) => new Response(JSON.stringify(data), {status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}});
 const html = (data, isCalendar=false) => new Response(data, {headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow',
-  'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; ${isCalendar ? "script-src 'none';" : "script-src 'unsafe-inline'; connect-src 'self';"} img-src 'self' https://telescoop-sgr8.smartschool.be; frame-ancestors 'self' https://telescoop-sgr8.smartschool.be; base-uri 'none'; form-action 'self'`}});
+  // The calendar keeps the proven Smartschool iframe contract. The management page cannot be framed.
+  'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; ${isCalendar ? "script-src 'none';" : "script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none';"} img-src 'self' https://telescoop-sgr8.smartschool.be; base-uri 'none'; form-action 'self'`}});
 
 async function authorized(request, env) {
   const expected = env.EDITOR_TOKEN_SHA256;
