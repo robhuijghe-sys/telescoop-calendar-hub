@@ -24,6 +24,7 @@ import app.calendar_snapshot as snapshot
 import app.public_calendar as public
 import app.delete_flow as deletion
 from app.outing_format import outing_label, bulk_outing
+from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 
 BUILD = 'railway-editor-20260926-v2'
@@ -325,6 +326,8 @@ def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = F
             if con.execute('SELECT id FROM editor_lines WHERE deleted=0 AND date_local=? AND title=?', (date, line)).fetchone():
                 continue
             color = CATEGORY_COLORS[infer_category(line, category) if category != 'auto' else ('uitstap' if re.match(r'^(?:VM|NM|hele dag|\d{2}:\d{2} tot \d{2}:\d{2}), ', line) else infer_category(line))][0]
+            if is_replacement(line):
+                color = '#000000'
             con.execute('INSERT INTO editor_lines(date_local,body_html,title) VALUES(?,?,?)', (date, f'<span style="color:{color}">{esc(line)}</span>', line))
             added += 1
         audit(con, 'calendar.bulk_added', {'date': date, 'count': added})

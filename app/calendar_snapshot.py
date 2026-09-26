@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import app.main as core
-from app.day_order import ordered_fragments
+from app.day_order import ordered_fragments, is_replacement
+from bs4 import BeautifulSoup
 from app.calendar_dynamic import MONTH_NAMES, MONTH_PALETTES, SEASONS, WEEKDAYS, _event_line, _top_links_html
 
 SNAPSHOT_PATH = Path(os.getenv("CALENDAR_SNAPSHOT_PATH", "/data/calendar_snapshot.json"))
@@ -100,6 +101,7 @@ def render_snapshot_calendar(hide_past=False, hidden_dates=()) -> str:
                 pieces = ordered_fragments(fragments)
             elif ds in dyn:
                 pieces = ordered_fragments(pieces)
+            pieces = [('<div class="replacement-line">' + piece + '</div>') if is_replacement(BeautifulSoup(piece, 'html.parser').get_text(' ', strip=True)) else piece for piece in pieces]
             body = "".join(pieces) or '<span class="muted">Nog geen inhoud.</span>'
             event_cell_class = "event-cell live-only" if (not has_base_content and ds in dyn) else "event-cell"
             desktop_rows.append(f'<tr data-calendar-date="{ds}"><td class="date-cell">{html.escape(label)}</td><td class="{event_cell_class}">{body}</td></tr>')
@@ -126,6 +128,7 @@ def render_snapshot_calendar(hide_past=False, hidden_dates=()) -> str:
     .focus{{padding:10px 16px;border-bottom:1px solid #efe9e3;background:linear-gradient(180deg,#fbfaf8 0%,#fff 100%);color:#605651;font-size:12px;letter-spacing:.03em}}.dot{{display:inline-block;width:8px;height:8px;border-radius:999px;margin-right:8px;vertical-align:middle}}
     .desktop-calendar{{width:100%;border-collapse:collapse;background:#fff;font-size:12px}}.date-cell{{width:112px;min-width:112px;max-width:112px;background:#fff5eb;color:#5b524d;font-size:12px;font-weight:700;white-space:nowrap;padding:13px 14px;vertical-align:top;border-bottom:1px solid #f0ebe6}}
     .event-cell{{background:#fff;color:#2f2926;font-size:12px;line-height:1.55;padding:13px 16px;vertical-align:top;border-bottom:1px solid #f0ebe6;overflow-wrap:anywhere}}.event-cell.live-only{{vertical-align:middle}}.event-line{{margin:0 0 6px;font-size:12px;line-height:1.55}}.event-line:last-child{{margin-bottom:0}}
+    .replacement-line,.replacement-line *{{color:#000!important}}
     .base-content,.base-content *{{font-family:Inter,Aptos,"Segoe UI",Calibri,Arial,sans-serif;font-size:12px;line-height:1.55;max-width:100%}}.base-content p{{margin-top:0}}.live-addition{{margin-top:6px}}.event-cell.live-only .live-addition{{margin-top:0}}
     .mobile-calendar{{display:none}}.muted{{color:#726761}}
     @media(max-width:560px){{html,body{{font-size:12px}}.wrap{{padding:10px 6px 18px}}.logo{{max-width:170px;margin-bottom:8px}}.links{{padding:0 6px;margin-bottom:14px}}.quick{{font-size:12px}}.month-card{{border-radius:14px;margin-bottom:14px;box-shadow:0 6px 18px rgba(40,33,28,.05)}}.month-head{{padding:8px 12px 7px}}.month-title{{font-size:17px}}.season{{font-size:9px;padding:3px 7px}}.focus{{padding:9px 12px;font-size:12px}}.desktop-calendar{{display:none}}.mobile-calendar{{display:block}}.mobile-day{{border-bottom:1px solid #f0ebe6}}.mobile-day:last-child{{border-bottom:0}}.mobile-date{{background:#fff5eb;color:#5b524d;font-size:12px;font-weight:700;padding:8px 12px}}.mobile-events{{padding:9px 12px 11px;background:#fff;color:#2f2926;font-size:12px;line-height:1.55;overflow-wrap:anywhere}}.event-line{{font-size:12px;line-height:1.55;margin-bottom:5px}}}}

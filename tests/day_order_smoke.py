@@ -18,3 +18,18 @@ rows=['teamvergadering: 15u45 tot 17u00','* actuakring: wat werkt?', 'Stage Fati
 assert ordered_fragments(rows)==[rows[4],rows[5],rows[3],rows[6],rows[2],rows[0],rows[1]]
 assert sorted(ordered_fragments(rows))==sorted(rows)
 print('STAGES_MEETINGS_QC=PASS')
+
+from bs4 import BeautifulSoup
+from app.day_order import is_replacement
+rows=['digitale wolven','3de en 4de lesuur: <b>GR3 + K3</b>','5de en 6de lesuur: <b>L1 + L2</b>','GR2 niet op school: GWP Bosklassen - Sint Joris Weert','WIS K3 in L1, 3de lesuur','Stage Fatima','teamvergadering','* agenda']
+result=ordered_fragments(rows)
+group=BeautifulSoup(result[0], 'html.parser')
+assert group.select_one('.activity-group')
+assert ' '.join(group.get_text(' ',strip=True).split())=='digitale wolven: 3de en 4de lesuur: GR3 + K3 5de en 6de lesuur: L1 + L2'
+assert len(group.select('b'))==2
+assert rows[3] in result and rows[4] in result
+assert result[-3:]==rows[-3:]
+assert time_key('3de en 4de lesuur: GR3 + K3')==580
+assert is_replacement('Marinela vervangt Milla (GWP GR2)')
+assert not is_replacement('Milla afwezig: GWP GR2')
+print('WORKSHOP_GROUPS_QC=PASS')

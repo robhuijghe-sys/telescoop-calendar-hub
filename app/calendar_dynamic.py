@@ -11,6 +11,7 @@ from fastapi import Depends, Form, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
+from app.day_order import is_replacement
 import app.main as core
 from app.entry import app
 
@@ -67,6 +68,8 @@ WARNING_WORDS = (
 
 
 def infer_category(text: str, explicit: str = "auto") -> str:
+    if is_replacement(text):
+        return "algemeen"
     explicit = CATEGORY_ALIASES.get((explicit or "auto").strip().lower(), "auto")
     if explicit != "auto":
         return explicit
