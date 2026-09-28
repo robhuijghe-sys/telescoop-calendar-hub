@@ -9,6 +9,8 @@ De Railway-service start met `app.simple_calendar:app`. De oorspronkelijke SQLit
 - `/kalender-links`: omschrijvingen en links toevoegen, aanpassen en verwijderen.
 - `/smartschool-calendar`: dezelfde Smartschool-URL, met alle verwijzingen onder het logo en `🔗 Kalender wijzigen` boven de kalender. Verversing elke 7200 seconden, Aptos met lokaal geleverde Roboto-reserve.
 
+Stages worden lichtblauw (`#5dade2`) en vet weergegeven als `Stage [naam] van 8u30 tot 12u40`. De uren staan achter de naam en gebruiken Belgische tijd. Bestaande titels, klasvermeldingen en opgeslagen uren blijven behouden; de weergaveregel geldt ook voor eerder als algemene activiteit opgeslagen stages. Bij een stage zonder opgegeven uren worden geen uren verzonnen.
+
 Deze schermen zijn bewust voor iedereen met de URL bruikbaar, zonder account of toegangscode. Verwijderen verbergt een regel; de oorspronkelijke gegevens en het auditlog blijven bewaard. De kalender rendert uit een cache die na elke databasewijziging ongeldig wordt; ongewijzigde browseraanvragen ontvangen HTTP 304. Er is geen achtergrondpolling of betaalde AI-API.
 
 Bij de eerste ingebruikname kan `CALENDAR_LINKS_GZ_B64` de aangeleverde verwijzingen bevatten (gzip + base64 van JSON met `description` en `url`). Die schoolgegevens staan niet in nieuwe bronbestanden. Daarna zijn wijzigingen in de database leidend.

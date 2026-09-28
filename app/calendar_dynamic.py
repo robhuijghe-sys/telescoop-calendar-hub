@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from pydantic import BaseModel, Field
 
 from app.day_order import is_replacement
+from app.stage_format import STAGE_COLOR, is_stage, stage_label
 import app.main as core
 from app.entry import app
 
@@ -19,6 +20,7 @@ from app.entry import app
 CATEGORY_COLORS = {
     "ouders": ("#99CA3B", "Ouders"),
     "personeel": ("#C614A1", "Personeel"),
+    "stage": (STAGE_COLOR, "Stage"),
     "uitstap": ("#F09009", "Uitstap / activiteit"),
     "waarschuwing": ("#D32F2F", "Afwezig / waarschuwing"),
     "algemeen": ("#2F2926", "Algemeen"),
@@ -30,6 +32,8 @@ CATEGORY_ALIASES = {
     "team": "personeel",
     "personeel": "personeel",
     "staff": "personeel",
+    "stage": "stage",
+    "stages": "stage",
     "uitstap": "uitstap",
     "waarschuwing": "waarschuwing",
     "algemeen": "algemeen",
@@ -73,6 +77,8 @@ def infer_category(text: str, explicit: str = "auto") -> str:
     explicit = CATEGORY_ALIASES.get((explicit or "auto").strip().lower(), "auto")
     if explicit != "auto":
         return explicit
+    if is_stage(text):
+        return "stage"
     t = " " + (text or "").lower() + " "
     if any(word in t for word in WARNING_WORDS):
         return "waarschuwing"
@@ -86,6 +92,10 @@ def infer_category(text: str, explicit: str = "auto") -> str:
 
 
 def category_for_row(row) -> str:
+    # Existing stage events may have been stored as general activities. Apply
+    # the same stage style without migrating or rewriting their data.
+    if is_stage(row["title"]):
+        return "stage"
     explicit = row["category"] if "category" in row.keys() else "auto"
     text = " ".join(str(row[k] or "") for k in ("title", "description", "source_prompt") if k in row.keys())
     return infer_category(text, explicit)
@@ -289,7 +299,8 @@ def _event_line(row) -> str:
             prefix = local_start.strftime("%H.%M") + "u: "
         else:
             prefix = local_start.strftime("%H.%M") + "-" + local_end.strftime("%H.%M") + "u: "
-    text = prefix + row["title"]
+    text = (stage_label(row["title"], local_start, local_end, row["all_day"])
+            if category_for_row(row) == "stage" else prefix + row["title"])
     if row["location"]:
         text += " — " + row["location"]
     color = color_for_row(row)
@@ -478,7 +489,7 @@ def connector_openapi(request: Request):
             "/interpret": {"post": {"operationId": "interpretCalendarInstruction", "summary": "Interpreteer een Nederlandse kalenderopdracht", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["text"], "properties": {"text": {"type": "string"}}}}}}, "responses": {"200": {"description": "OK"}}}},
             "/events": {
                 "get": {"operationId": "listCalendarItems", "summary": "Lijst kalenderitems", "responses": {"200": {"description": "OK"}}},
-                "post": {"operationId": "addCalendarItem", "summary": "Voeg een item rechtstreeks toe aan de dynamische Smartschoolkalender", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["title", "date"], "properties": {"title": {"type": "string"}, "date": {"type": "string", "format": "date"}, "start_time": {"type": "string", "description": "HH:MM, optioneel"}, "end_time": {"type": "string", "description": "HH:MM, optioneel"}, "all_day": {"type": "boolean"}, "description": {"type": "string"}, "location": {"type": "string"}, "category": {"type": "string", "enum": ["auto", "ouders", "personeel", "uitstap", "waarschuwing", "algemeen"], "default": "auto"}, "source_prompt": {"type": "string"}}}}}}, "responses": {"200": {"description": "Toegevoegd"}}}
+                "post": {"operationId": "addCalendarItem", "summary": "Voeg een item rechtstreeks toe aan de dynamische Smartschoolkalender", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["title", "date"], "properties": {"title": {"type": "string"}, "date": {"type": "string", "format": "date"}, "start_time": {"type": "string", "description": "HH:MM, optioneel"}, "end_time": {"type": "string", "description": "HH:MM, optioneel"}, "all_day": {"type": "boolean"}, "description": {"type": "string"}, "location": {"type": "string"}, "category": {"type": "string", "enum": ["auto", "ouders", "personeel", "stage", "uitstap", "waarschuwing", "algemeen"], "default": "auto"}, "source_prompt": {"type": "string"}}}}}}, "responses": {"200": {"description": "Toegevoegd"}}}
             }
         }
     }

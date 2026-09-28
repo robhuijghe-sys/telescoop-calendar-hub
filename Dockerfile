@@ -19,3 +19,4 @@ CMD ["uvicorn", "app.simple_calendar:app", "--host", "0.0.0.0", "--port", "8000"
 RUN python tests/day_source_smoke.py
 
 RUN python tests/day_order_smoke.py
+RUN python tests/stage_format_smoke.py

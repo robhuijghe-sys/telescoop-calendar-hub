@@ -27,7 +27,7 @@ from app.outing_format import outing_label, bulk_outing
 from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 
-BUILD = 'railway-editor-20260926-v2'
+BUILD = 'railway-editor-20260928-stage-format'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -328,7 +328,8 @@ def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = F
             color = CATEGORY_COLORS[infer_category(line, category) if category != 'auto' else ('uitstap' if re.match(r'^(?:VM|NM|hele dag|\d{2}:\d{2} tot \d{2}:\d{2}), ', line) else infer_category(line))][0]
             if is_replacement(line):
                 color = '#000000'
-            con.execute('INSERT INTO editor_lines(date_local,body_html,title) VALUES(?,?,?)', (date, f'<span style="color:{color}">{esc(line)}</span>', line))
+            weight = ';font-weight:700' if infer_category(line, category) == 'stage' else ''
+            con.execute('INSERT INTO editor_lines(date_local,body_html,title) VALUES(?,?,?)', (date, f'<span style="color:{color}{weight}">{esc(line)}</span>', line))
             added += 1
         audit(con, 'calendar.bulk_added', {'date': date, 'count': added})
         con.commit()
