@@ -86,3 +86,22 @@ def apply_latest_source(original_snapshot, split_lines, clean_html, plain, safe_
         con.commit()
     finally:
         con.close()
+
+
+_apply_source_export = apply_latest_source
+
+
+def apply_latest_source(original_snapshot, split_lines, clean_html, plain, safe_url):
+    _apply_source_export(original_snapshot, split_lines, clean_html, plain, safe_url)
+    # A one-time requested DATA addition; no existing calendar items are replaced.
+    # Keep the calendar available if this independently transactional update fails.
+    try:
+        from app.stage_imane import apply_imane_request, verify_imane_render
+        result = apply_imane_request(core)
+    except Exception as exc:
+        print('IMANE_CALENDAR_ERROR ' + json.dumps({'error': str(exc)}), flush=True)
+        return
+    try:
+        verify_imane_render(core, result)
+    except Exception as exc:
+        print('IMANE_CALENDAR_RENDER_ERROR ' + json.dumps({'error': str(exc)}), flush=True)
