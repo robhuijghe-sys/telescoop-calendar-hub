@@ -22,6 +22,7 @@ CATEGORY_COLORS = {
     "ouders": ("#99CA3B", "Ouders"),
     "personeel": ("#C614A1", "Personeel"),
     "stage": (STAGE_COLOR, "Stage"),
+    "secretariaat": ("#a2c647", "Taak secretariaat"),
     "uitstap": ("#F09009", "Uitstap / activiteit"),
     "waarschuwing": ("#D32F2F", "Afwezig / waarschuwing"),
     "algemeen": ("#2F2926", "Algemeen"),
@@ -35,6 +36,9 @@ CATEGORY_ALIASES = {
     "staff": "personeel",
     "stage": "stage",
     "stages": "stage",
+    "secretariaat": "secretariaat",
+    "taak secretariaat": "secretariaat",
+    "afwezigheid": "waarschuwing",
     "uitstap": "uitstap",
     "waarschuwing": "waarschuwing",
     "algemeen": "algemeen",
@@ -83,6 +87,8 @@ def infer_category(text: str, explicit: str = "auto") -> str:
     t = " " + (text or "").lower() + " "
     if any(word in t for word in WARNING_WORDS):
         return "waarschuwing"
+    if 'secretariaat' in t:
+        return "secretariaat"
     if any(word in t for word in PARENT_WORDS):
         return "ouders"
     if any(word in t for word in OUTING_WORDS):
@@ -497,7 +503,7 @@ def connector_openapi(request: Request):
             "/interpret": {"post": {"operationId": "interpretCalendarInstruction", "summary": "Interpreteer een Nederlandse kalenderopdracht", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["text"], "properties": {"text": {"type": "string"}}}}}}, "responses": {"200": {"description": "OK"}}}},
             "/events": {
                 "get": {"operationId": "listCalendarItems", "summary": "Lijst kalenderitems", "responses": {"200": {"description": "OK"}}},
-                "post": {"operationId": "addCalendarItem", "summary": "Voeg een item rechtstreeks toe aan de dynamische Smartschoolkalender", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["title", "date"], "properties": {"title": {"type": "string"}, "date": {"type": "string", "format": "date"}, "start_time": {"type": "string", "description": "HH:MM, optioneel"}, "end_time": {"type": "string", "description": "HH:MM, optioneel"}, "all_day": {"type": "boolean"}, "description": {"type": "string"}, "location": {"type": "string"}, "category": {"type": "string", "enum": ["auto", "ouders", "personeel", "stage", "uitstap", "waarschuwing", "algemeen"], "default": "auto"}, "source_prompt": {"type": "string"}}}}}}, "responses": {"200": {"description": "Toegevoegd"}}}
+                "post": {"operationId": "addCalendarItem", "summary": "Voeg een item rechtstreeks toe aan de dynamische Smartschoolkalender", "requestBody": {"required": True, "content": {"application/json": {"schema": {"type": "object", "required": ["title", "date"], "properties": {"title": {"type": "string"}, "date": {"type": "string", "format": "date"}, "start_time": {"type": "string", "description": "HH:MM, optioneel"}, "end_time": {"type": "string", "description": "HH:MM, optioneel"}, "all_day": {"type": "boolean"}, "description": {"type": "string"}, "location": {"type": "string"}, "category": {"type": "string", "enum": ["auto", "ouders", "personeel", "stage", "secretariaat", "uitstap", "waarschuwing", "algemeen"], "default": "auto"}, "source_prompt": {"type": "string"}}}}}}, "responses": {"200": {"description": "Toegevoegd"}}}
             }
         }
     }

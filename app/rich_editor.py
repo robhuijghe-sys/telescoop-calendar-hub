@@ -76,4 +76,5 @@ EDITOR_CSS = '''
 .editor-tools label{display:flex;align-items:center;gap:6px;margin:0;font-size:14px}.editor-tools input[type=color]{width:42px;height:34px;padding:2px;cursor:pointer}
 .editor-tools button{font-size:14px;padding:7px 9px}.html-editor .editbox{background:white;border-radius:0 0 8px 8px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:110px}.editbox:empty:before{content:attr(data-placeholder);color:#726761;pointer-events:none}
 .html-editor textarea{font-family:monospace!important;min-height:130px}.editor-error{color:#8a2f2f}.editor-tools button[aria-pressed=true]{background:#672f57}.editor-visual p,.editor-visual div{margin:0}
+.type-color{display:flex;align-items:center;gap:8px;font-size:14px}.type-color-dot{width:14px;height:14px;flex-shrink:0;border:1px solid #b9b9b9;border-radius:50%;background:#fff}
 '''

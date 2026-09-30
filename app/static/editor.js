@@ -34,6 +34,25 @@
     let selection = null, sourceMode = false;
     visual.innerHTML = safeHTML(source.value);
     source.hidden = true; visual.hidden = false; tools.hidden = false;
+    const form = root.closest('form');
+    const type = form.querySelector('[data-calendar-type]');
+    if (type) {
+      const updateType = () => {
+        const option = type.selectedOptions[0], color = option.dataset.color;
+        visual.style.color = color || '';
+        visual.style.fontWeight = ['stage','secretariaat'].includes(type.value) ? '700' : '';
+        if (color) picker.value = color;
+        visual.dataset.placeholder = option.dataset.placeholder;
+        source.placeholder = option.dataset.placeholder;
+        form.querySelector('#activity-type-help').textContent = option.dataset.help;
+        form.querySelector('.type-color-dot').style.backgroundColor = color || '#fff';
+        form.querySelector('.type-color-text').textContent = color
+          ? 'Automatische kleur: ' + option.dataset.colorName + '. Je kunt de tekstkleur hieronder aanpassen.'
+          : 'De kleur wordt automatisch per regel gekozen.';
+      };
+      type.addEventListener('change', updateType);
+      updateType();
+    }
     const remember = () => {
       const selected = window.getSelection();
       if (selected.rangeCount && visual.contains(selected.anchorNode) && visual.contains(selected.focusNode)) selection = selected.getRangeAt(0).cloneRange();
@@ -79,7 +98,7 @@
     });
     // Dropped markup must not bypass the paste/source sanitizer.
     visual.addEventListener('drop', event => event.preventDefault());
-    root.closest('form').addEventListener('submit', event => {
+    form.addEventListener('submit', event => {
       source.value = safeHTML(sourceMode ? source.value : visual.innerHTML);
       const check = new DOMParser().parseFromString(source.value, 'text/html');
       const empty = !check.body.textContent.trim();

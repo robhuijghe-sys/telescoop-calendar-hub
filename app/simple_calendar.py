@@ -28,7 +28,7 @@ from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html
 
-BUILD = 'railway-editor-20260930-html-colors'
+BUILD = 'railway-editor-20260930-activity-types'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -303,7 +303,19 @@ def calendar(request: Request):
 @app.get('/')
 def home(saved: int = 0, added: int = 0):
     message = '<p class="ok">Opgeslagen. De kalender toont je wijziging bij de volgende opening; openstaande kalenders verversen binnen twee uur.</p>' if saved or added else ''
-    body = '''<details class="card" open><summary>Toevoegen aan kalender</summary><p>Kies één datum. Gebruik voor elke regel: dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld VM: K3: uitstap naar plantentuin. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label>Datum</label><input type="date" name="date" required>'''
+    types = [
+        ('auto', 'Automatisch per regel', 'Gebruik per regel: dagdeel of uur: klasgroep: locatie of activiteit.', 'VM: K3: uitstap naar plantentuin', ''),
+        ('uitstap', 'Uitstap', 'Gebruik per uitstap: VM/NM/hele dag of beginuur tot einduur: klasgroep: locatie.', 'VM: K3: plantentuin Meise', 'oranje'),
+        ('waarschuwing', 'Afwezigheid', 'Schrijf één afwezigheid per regel. Vervangingen mogen op aparte regels en blijven standaard zwart.', 'Lien afwezig', 'rood'),
+        ('secretariaat', 'Taak secretariaat', 'Schrijf één taak per regel. Een klasgroep of uur is niet verplicht.', 'Secretariaat belt ouders zonder afspraak', 'groen'),
+        ('stage', 'Stage', 'Schrijf één stage per regel, met de naam en eventueel klasgroep en uren.', 'Stage Imane K0K1 van 8u30 tot 12u40', 'lichtblauw'),
+        ('personeel', 'Personeel / overleg', 'Schrijf één activiteit of overleg per regel, eventueel met het uur.', '15u30: teamvergadering', 'paars'),
+        ('ouders', 'Ouders / oudercontact', 'Schrijf één ouderactiviteit per regel, eventueel met klasgroep en uur.', '16u00: oudercontact L1', 'groen'),
+        ('algemeen', 'Algemeen', 'Schrijf één activiteit per regel, eventueel met klasgroep en uur.', 'Materiaal klaarleggen', 'donkergrijs'),
+    ]
+    options = ''.join(f'<option value="{key}" data-color="{CATEGORY_COLORS[key][0] if key != "auto" else ""}" data-color-name="{color_name}" data-help="{esc(help_text, quote=True)}" data-placeholder="{esc(placeholder, quote=True)}">{label}</option>' for key, label, help_text, placeholder, color_name in types)
+    body = '''<details class="card" open><summary>Toevoegen aan kalender</summary><p>Kies één datum en een type. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label for="activity-date">Datum</label><input id="activity-date" type="date" name="date" required>'''
+    body += f'<label for="activity-type">Type</label><select id="activity-type" name="category" data-calendar-type>{options}</select><p class="type-color" aria-live="polite"><span class="type-color-dot" aria-hidden="true"></span><span class="type-color-text">De kleur wordt automatisch per regel gekozen.</span></p><p id="activity-type-help">{types[0][2]}</p>'
     body += editor('lines_html', label='Activiteiten en vervangingen', required=True, placeholder='VM: K3: uitstap naar plantentuin')
     body += '<p><button>Toevoegen aan kalender</button></p></form></details>'
     return HTMLResponse(page('Activiteiten toevoegen', message + body))
@@ -345,7 +357,7 @@ def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Fo
         raise HTTPException(400, 'Zet elke activiteit op een aparte regel met Enter of <br>.')
     if not rows or len(rows) > 100 or any(len(line) > 1000 for line in rows):
         raise HTTPException(400, 'Gebruik 1 tot 100 regels, met maximaal 1000 tekens per regel.')
-    if structured == '1':
+    if structured == '1' and category in ('auto', 'uitstap'):
         normalized = []
         for number, line in enumerate(rows, 1):
             parts = re.split(r':\s+|\s+-\s+|,\s*', line, maxsplit=2)
@@ -369,7 +381,7 @@ def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Fo
             color = CATEGORY_COLORS[infer_category(line, category) if category != 'auto' else ('uitstap' if re.match(r'^(?:VM|NM|hele dag|\d{2}:\d{2} tot \d{2}:\d{2}), ', line) else infer_category(line))][0]
             if is_replacement(line):
                 color = '#000000'
-            weight = ';font-weight:700' if infer_category(line, category) == 'stage' else ''
+            weight = ';font-weight:700' if infer_category(line, category) in ('stage', 'secretariaat') else ''
             content = reshape_html(fragments[index], line) if fragments else esc(line)
             custom = int(bool(fragments and has_custom_color(fragments[index])))
             con.execute('INSERT INTO editor_lines(date_local,body_html,title,custom_format) VALUES(?,?,?,?)', (date, f'<span style="color:{color}{weight}">{content}</span>', line, custom))

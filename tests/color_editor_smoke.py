@@ -77,4 +77,34 @@ with TestClient(app) as client:
     assert plain('Bo<span style="color:red">ek</span>') == 'Boek'
     assert plain(reshape_html('vm: <span>k3</span>: uitstap naar Meise', 'VM, K3, Meise')) == 'VM, K3, Meise'
 
+    # Type selection works without client-side code, including unstructured tasks.
+    home_doc = BeautifulSoup(client.get('/').text, 'html.parser')
+    type_values = {o['value'] for o in home_doc.select('select[name=category] option')}
+    assert {'auto', 'uitstap', 'waarschuwing', 'secretariaat', 'stage', 'personeel', 'ouders', 'algemeen'} == type_values
+    for category, text, expected, title in [
+        ('uitstap', 'NM: L4: museum', '#F09009', 'NM, L4, museum'),
+        ('waarschuwing', 'Lien afwezig', '#D32F2F', 'Lien afwezig'),
+        ('secretariaat', 'Ouders bellen zonder afspraak', '#a2c647', 'Ouders bellen zonder afspraak'),
+        ('stage', 'Stage Noor van 8u30 tot 12u40', '#5dade2', 'Stage Noor van 8u30 tot 12u40'),
+        ('personeel', '15u30: overleg leesbeleid', '#C614A1', '15u30: overleg leesbeleid'),
+        ('ouders', '16u00: infoavond', '#99CA3B', '16u00: infoavond'),
+        ('algemeen', 'Materialen klaarleggen', '#2F2926', 'Materialen klaarleggen'),
+    ]:
+        response = client.post('/kalender-toevoegen', data={'date':'2026-10-16', 'category':category, 'structured':'1', 'lines_html':text}, follow_redirects=False)
+        assert response.status_code == 303, (category,response.text)
+        con = core.db()
+        saved = dict(con.execute('SELECT * FROM editor_lines WHERE date_local=? AND title=?', ('2026-10-16',title)).fetchone())
+        con.close()
+        assert 'color:' + expected in saved['body_html'] and saved['custom_format'] == 0
+        if category in ('stage','secretariaat'):
+            assert 'font-weight:700' in saved['body_html']
+        assert saved['body_html'] in client.get('/smartschool-calendar').text
+    from app.calendar_dynamic import infer_category
+    assert infer_category('Secretariaat belt ouders zonder afspraak') == 'secretariaat'
+    response = client.post('/kalender-toevoegen', data={'date':'2026-10-16','category':'secretariaat','structured':'1','lines_html':'<span style="color:#123456">Kopieën maken</span>'}, follow_redirects=False)
+    assert response.status_code == 303
+    rendered = client.get('/smartschool-calendar').text
+    assert '#123456' in rendered
+    assert client.post('/kalender-toevoegen', data={'date':'2026-10-16','category':'uitstap','structured':'1','lines_html':'Onvolledige uitstap'}).status_code == 400
+
 print('TCH_COLOR_EDITOR_SMOKE_TEST=PASS')
