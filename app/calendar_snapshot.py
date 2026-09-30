@@ -101,7 +101,7 @@ def render_snapshot_calendar(hide_past=False, hidden_dates=()) -> str:
                 pieces = ordered_fragments(fragments)
             elif ds in dyn:
                 pieces = ordered_fragments(pieces)
-            pieces = [('<div class="replacement-line">' + piece + '</div>') if is_replacement(BeautifulSoup(piece, 'html.parser').get_text(' ', strip=True)) else piece for piece in pieces]
+            pieces = [('<div class="replacement-line">' + piece + '</div>') if 'data-custom-format="true"' not in piece and is_replacement(BeautifulSoup(piece, 'html.parser').get_text(' ', strip=True)) else piece for piece in pieces]
             body = "".join(pieces) or '<span class="muted">Nog geen inhoud.</span>'
             event_cell_class = "event-cell live-only" if (not has_base_content and ds in dyn) else "event-cell"
             desktop_rows.append(f'<tr data-calendar-date="{ds}"><td class="date-cell">{html.escape(label)}</td><td class="{event_cell_class}">{body}</td></tr>')

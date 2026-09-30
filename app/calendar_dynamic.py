@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.day_order import is_replacement
 from app.stage_format import STAGE_COLOR, is_stage, stage_label
+from app.rich_editor import fragment_text, reshape_html, inline_html
 import app.main as core
 from app.entry import app
 
@@ -307,7 +308,14 @@ def _event_line(row) -> str:
     desc = ""
     if row["description"]:
         desc = '<br>' + '<br>'.join(html.escape(x) for x in row["description"].splitlines() if x.strip())
-    return f'<span style="color:{color};font-weight:{"700" if color != CATEGORY_COLORS["algemeen"][0] else "400"}">{html.escape(text)}</span>{desc}'
+    body, custom = html.escape(text), ''
+    if 'title_html' in row.keys() and row['title_html'] and fragment_text(row['title_html']) == row['title']:
+        body = inline_html(reshape_html(row['title_html'], text))
+        custom = ' data-custom-format="true"'
+    if 'description_html' in row.keys() and row['description_html'] and fragment_text(row['description_html']) == row['description']:
+        desc = '<br>' + inline_html(row['description_html'])
+        custom = ' data-custom-format="true"'
+    return f'<span{custom} style="color:{color};font-weight:{"700" if color != CATEGORY_COLORS["algemeen"][0] else "400"}">{body}</span>{desc}'
 
 
 def _calendar_data():

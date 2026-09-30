@@ -15,7 +15,9 @@ import app.main as core
 
 with TestClient(app) as client:
     assert client.get('/').status_code == 200
-    assert 'Meerdere regels toevoegen' in client.get('/').text
+    assert 'Toevoegen aan kalender' in client.get('/').text
+    assert 'Meerdere regels toevoegen' not in client.get('/').text
+    assert 'Een activiteit in gewone taal invoeren' not in client.get('/').text
     assert '/login' not in client.get('/').text
     assert len(rows_all()) == 2
     assert Path(core.DB_PATH + '.before-public-editor.bak').exists()

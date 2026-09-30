@@ -1,13 +1,15 @@
 # Telescoop Calendar Hub
 
-## Actuele publieke kalender (26 september 2026)
+## Actuele publieke kalender (30 september 2026)
 
 De Railway-service start met `app.simple_calendar:app`. De oorspronkelijke SQLite-databank en JSON-kalender op `/data` blijven behouden. De eerste start bewaart een databasekopie en zet de bestaande kalenderregels transactioneel in bewerkbare regels om; latere starts importeren ze niet opnieuw. Bestaande toevoegingen uit `events` blijven beschikbaar.
 
-- `/`: meerdere regels in één keer toevoegen op één datum, bijvoorbeeld een afwezigheid met alle vervangingen. Iedere regel blijft apart bewerkbaar. De bestaande invoer in gewone Nederlandse taal blijft beschikbaar.
+- `/`: de module **Toevoegen aan kalender** voegt meerdere regels in één keer toe op één datum. Iedere regel blijft apart bewerkbaar. De invoermodule in gewone Nederlandse taal is uit dit scherm verwijderd.
 - `/kalender-wijzigen`: zoeken, wijzigen en bevestigd verwijderen van oorspronkelijke en later toegevoegde activiteiten. Wijzigingsversies voorkomen dat twee open formulieren elkaar stilzwijgend overschrijven.
 - `/kalender-links`: omschrijvingen en links toevoegen, aanpassen en verwijderen.
 - `/smartschool-calendar`: dezelfde Smartschool-URL, met alle verwijzingen onder het logo en `🔗 Kalender wijzigen` boven de kalender. Verversing elke 7200 seconden, Aptos met lokaal geleverde Roboto-reserve.
+
+Invoeren, activiteiten aanpassen en linkomschrijvingen gebruiken dezelfde compacte HTML-editor: tekstkleur, vet, opmaak wissen en een HTML-weergave. Gekozen kleuren blijven bewaard in SQLite en verschijnen op desktop en mobiel in de Smartschoolkalender. Opmaak wordt bij opslaan geschoond; de HTML-weergave en geplakte inhoud kunnen geen scripts invoegen. De bestaande categorie- en stagekleuren blijven de standaard; expliciet gekozen tekstkleuren krijgen voorrang. De migratie voegt uitsluitend velden toe en verandert geen bestaande activiteiten of verwijzingen.
 
 Stages worden lichtblauw (`#5dade2`) en vet weergegeven als `Stage [naam] van 8u30 tot 12u40`. De uren staan achter de naam en gebruiken Belgische tijd. Bestaande titels, klasvermeldingen en opgeslagen uren blijven behouden; de weergaveregel geldt ook voor eerder als algemene activiteit opgeslagen stages. Bij een stage zonder opgegeven uren worden geen uren verzonnen.
 

@@ -26,8 +26,9 @@ import app.delete_flow as deletion
 from app.outing_format import outing_label, bulk_outing
 from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
+from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html
 
-BUILD = 'railway-editor-20260928-stage-format'
+BUILD = 'railway-editor-20260930-html-colors'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -76,9 +77,12 @@ def clean_html(value):
     for tag in list(soup.find_all(True)):
         if not tag.name:
             continue
-        if tag.name in ('script', 'style', 'iframe', 'object', 'svg'):
+        if tag.name in ('script', 'style', 'iframe', 'object', 'svg', 'math', 'template'):
             tag.decompose()
             continue
+        if tag.name == 'font':
+            tag.name = 'span'
+            tag['style'] = str(tag.get('style', '')) + ';color:' + str(tag.get('color', ''))
         if tag.name not in ('span', 'b', 'strong', 'i', 'em', 'u', 'a', 'br', 'p', 'div'):
             tag.unwrap()
             continue
@@ -86,7 +90,7 @@ def clean_html(value):
         style = []
         for part in str(tag.get('style', '')).split(';'):
             key, sep, val = part.partition(':')
-            if sep and key.strip().lower() in ('color', 'font-weight', 'font-style', 'text-decoration') and re.fullmatch(r'[\w\s#(),.%\-]+', val.strip()):
+            if sep and key.strip().lower() in ('color', 'background-color', 'font-weight', 'font-style', 'text-decoration') and re.fullmatch(r'[\w\s#(),.%\-]+', val.strip()) and not re.search(r'url\s*\(|expression\s*\(', val, re.I):
                 style.append(key.strip().lower() + ':' + val.strip())
         if style:
             attrs['style'] = ';'.join(style)
@@ -120,7 +124,8 @@ def split_lines(value):
             if block:
                 flush()
             attrs = ''.join(' ' + k + '="' + esc(' '.join(v) if isinstance(v, list) else str(v), quote=True) + '"' for k, v in node.attrs.items())
-            wrapper = (f'<{node.name}{attrs}>', f'</{node.name}>')
+            inline_name = 'span' if block else node.name
+            wrapper = (f'<{inline_name}{attrs}>', f'</{inline_name}>')
             for child in node.children:
                 walk(child, parents + [wrapper])
             if block:
@@ -132,7 +137,11 @@ def split_lines(value):
 
 
 def plain(value):
-    return BeautifulSoup(value, 'html.parser').get_text(' ', strip=True)
+    return fragment_text(value)
+
+
+def has_custom_color(value):
+    return any(re.search(r'(?:^|;)\s*color\s*:', tag.get('style', ''), re.I) for tag in BeautifulSoup(value, 'html.parser').find_all(style=True))
 
 
 @app.on_event('startup')
@@ -152,6 +161,15 @@ def setup_editor():
       INSERT OR IGNORE INTO editor_state(id) VALUES(1);
       CREATE TABLE IF NOT EXISTS editor_days(date_local TEXT PRIMARY KEY,hidden INTEGER NOT NULL DEFAULT 1);
     ''')
+    # Additive migration: old activities, identifiers and versions stay intact.
+    for table, column, definition in (
+        ('editor_lines', 'custom_format', 'INTEGER NOT NULL DEFAULT 0'),
+        ('editor_links', 'description_html', "TEXT NOT NULL DEFAULT ''"),
+        ('events', 'title_html', "TEXT NOT NULL DEFAULT ''"),
+        ('events', 'description_html', "TEXT NOT NULL DEFAULT ''"),
+    ):
+        if column not in {row['name'] for row in con.execute(f'PRAGMA table_info({table})')}:
+            con.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
     for table in ('events', 'editor_lines', 'editor_links', 'editor_days', 'settings'):
         for operation in ('INSERT', 'UPDATE', 'DELETE'):
             con.execute(f'CREATE TRIGGER IF NOT EXISTS editor_revision_{table}_{operation} AFTER {operation} ON {table} BEGIN UPDATE editor_state SET revision=revision+1 WHERE id=1; END')
@@ -177,10 +195,13 @@ def edited_snapshot():
     con = core.db()
     layout = json.loads(con.execute("SELECT value FROM settings WHERE key='editor_layout'").fetchone()[0])
     entries = {e['date']: dict(e) for e in layout['entries']}
-    for row in con.execute('SELECT date_local,body_html FROM editor_lines WHERE deleted=0 ORDER BY date_local,id'):
+    for row in con.execute('SELECT date_local,body_html,custom_format FROM editor_lines WHERE deleted=0 ORDER BY date_local,id'):
         day = entries.setdefault(row['date_local'], {'date': row['date_local'], 'html': ''})
-        day.setdefault('lines', []).append(row['body_html'])
-        day['html'] += ('<br>' if day['html'] else '') + row['body_html']
+        body = row['body_html']
+        if row['custom_format']:
+            body = '<span data-custom-format="true">' + body + '</span>'
+        day.setdefault('lines', []).append(body)
+        day['html'] += ('<br>' if day['html'] else '') + body
     con.close()
     layout['entries'] = list(entries.values())
     # The old renderer requires a label for every base date.
@@ -193,9 +214,9 @@ def edited_snapshot():
 
 def links_html():
     con = core.db()
-    links = [('/', 'Kalender wijzigen')] + [(r['url'], r['description']) for r in con.execute('SELECT url,description FROM editor_links WHERE deleted=0 ORDER BY id')]
+    links = [('/', 'Kalender wijzigen')] + [(r['url'], inline_html(clean_html(r['description_html'])) if r['description_html'] and plain(r['description_html']) == r['description'] else esc(r['description'])) for r in con.execute('SELECT url,description,description_html FROM editor_links WHERE deleted=0 ORDER BY id')]
     con.close()
-    return ''.join(f'<p class="quick"><a href="{esc(url, quote=True)}" target="_blank" rel="noopener noreferrer">🔗 {esc(label)}</a></p>' for url, label in links)
+    return ''.join(f'<p class="quick"><a href="{esc(url, quote=True)}" target="_blank" rel="noopener noreferrer">🔗 {label}</a></p>' for url, label in links)
 
 
 snapshot._load_snapshot = edited_snapshot
@@ -204,12 +225,13 @@ snapshot._top_links_html = links_html
 
 def page(title, body):
     nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a></nav>'
-    return original_page(title, nav + body).replace('</style>', FONT_CSS + '</style>', 1)
+    return original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js" defer></script></body>')
 
 
 public.public_page = page
 deletion.public_page = page
 app.mount('/calendar-fonts', StaticFiles(directory=Path(__file__).parent / 'static/fonts'), name='calendar-fonts')
+app.mount('/calendar-editor', StaticFiles(directory=Path(__file__).parent / 'static'), name='calendar-editor')
 
 
 @app.middleware('http')
@@ -281,7 +303,9 @@ def calendar(request: Request):
 @app.get('/')
 def home(saved: int = 0, added: int = 0):
     message = '<p class="ok">Opgeslagen. De kalender toont je wijziging bij de volgende opening; openstaande kalenders verversen binnen twee uur.</p>' if saved or added else ''
-    body = '''<details class="card" open><summary>Een activiteit in gewone taal invoeren</summary><form method="post" action="/public/interpret"><label>Opdracht</label><textarea name="prompt" maxlength="2000" placeholder="Voeg op 3 juni uitstap L2 naar plantentuin Meise toe in de VM." required></textarea><p><button>Interpreteren en controleren</button></p></form></details><details class="card"><summary>Meerdere regels toevoegen</summary><p>Kies één datum. Gebruik voor elke regel: dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld VM: K3: uitstap naar plantentuin. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label>Datum</label><input type="date" name="date" required><label>Activiteiten en vervangingen</label><textarea name="lines" rows="9" maxlength="20000" placeholder="VM: K3: uitstap naar plantentuin" required></textarea><p><button>Alle regels toevoegen</button></p></form></details>'''
+    body = '''<details class="card" open><summary>Toevoegen aan kalender</summary><p>Kies één datum. Gebruik voor elke regel: dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld VM: K3: uitstap naar plantentuin. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label>Datum</label><input type="date" name="date" required>'''
+    body += editor('lines_html', label='Activiteiten en vervangingen', required=True, placeholder='VM: K3: uitstap naar plantentuin')
+    body += '<p><button>Toevoegen aan kalender</button></p></form></details>'
     return HTMLResponse(page('Activiteiten toevoegen', message + body))
 
 
@@ -299,9 +323,26 @@ def audit(con, action, data):
 
 
 @app.post('/kalender-toevoegen')
-def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = Form("0"), category: str = Form("auto")):
+def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Form("0"), category: str = Form("auto"), lines_html: str = Form('')):
     valid_date(date)
+    # Direct callers of this route omit FastAPI's optional Form argument.
+    lines_html = lines_html if isinstance(lines_html, str) else ''
+    if len(lines_html) > 20000:
+        raise HTTPException(400, 'De opgemaakte tekst is te lang.')
+    rich_input = BeautifulSoup(clean_html(lines_html), 'html.parser')
+    for node in list(rich_input.find_all(string=True)):
+        if '\n' in node:
+            for index, part in enumerate(str(node).splitlines()):
+                if index:
+                    node.insert_before(rich_input.new_tag('br'))
+                node.insert_before(NavigableString(part))
+            node.extract()
+    fragments = split_lines(str(rich_input)) if lines_html else []
+    if fragments:
+        lines = '\n'.join(plain(fragment) for fragment in fragments)
     rows = [line.strip() for line in lines.splitlines() if line.strip()]
+    if fragments and len(fragments) != len(rows):
+        raise HTTPException(400, 'Zet elke activiteit op een aparte regel met Enter of <br>.')
     if not rows or len(rows) > 100 or any(len(line) > 1000 for line in rows):
         raise HTTPException(400, 'Gebruik 1 tot 100 regels, met maximaal 1000 tekens per regel.')
     if structured == '1':
@@ -322,14 +363,16 @@ def add_lines(date: str = Form(...), lines: str = Form(...), structured: str = F
         con.execute('BEGIN IMMEDIATE')
         con.execute('DELETE FROM editor_days WHERE date_local=?', (date,))
         added = 0
-        for line in rows:
+        for index, line in enumerate(rows):
             if con.execute('SELECT id FROM editor_lines WHERE deleted=0 AND date_local=? AND title=?', (date, line)).fetchone():
                 continue
             color = CATEGORY_COLORS[infer_category(line, category) if category != 'auto' else ('uitstap' if re.match(r'^(?:VM|NM|hele dag|\d{2}:\d{2} tot \d{2}:\d{2}), ', line) else infer_category(line))][0]
             if is_replacement(line):
                 color = '#000000'
             weight = ';font-weight:700' if infer_category(line, category) == 'stage' else ''
-            con.execute('INSERT INTO editor_lines(date_local,body_html,title) VALUES(?,?,?)', (date, f'<span style="color:{color}{weight}">{esc(line)}</span>', line))
+            content = reshape_html(fragments[index], line) if fragments else esc(line)
+            custom = int(bool(fragments and has_custom_color(fragments[index])))
+            con.execute('INSERT INTO editor_lines(date_local,body_html,title,custom_format) VALUES(?,?,?,?)', (date, f'<span style="color:{color}{weight}">{content}</span>', line, custom))
             added += 1
         audit(con, 'calendar.bulk_added', {'date': date, 'count': added})
         con.commit()
@@ -452,13 +495,18 @@ def edit_row(key: str):
         con.close()
     if kind == 'basis':
         date, version = row['date_local'], str(row['version'])
-        fields = f'<label>Tekst en links van deze regel</label><div class="editbox" id="rich" contenteditable="true" role="textbox" aria-multiline="true">{row["body_html"]}</div><input type="hidden" name="body_html" id="bodyHtml"><p class="muted">Bestaande kleuren en links blijven behouden tijdens het aanpassen.</p>'
+        fields = editor('body_html', clean_html(row['body_html']), 'Tekst en links van deze regel', required=True)
     else:
         local = datetime.fromisoformat(row['start_at']).astimezone(core.TZ)
         end = datetime.fromisoformat(row['end_at']).astimezone(core.TZ)
         date, version = local.date().isoformat(), row['updated_at']
-        fields = f'<label>Tekst</label><input name="title" maxlength="500" value="{esc(row["title"], quote=True)}" required><label>Beginuur</label><input type="time" name="start_time" value="{local.strftime("%H:%M") if not row["all_day"] else ""}"><label>Einduur</label><input type="time" name="end_time" value="{end.strftime("%H:%M") if not row["all_day"] else ""}"><label>Extra regels</label><textarea name="description" maxlength="4000">{esc(row["description"])}</textarea><label>Locatie</label><input name="location" maxlength="500" value="{esc(row["location"], quote=True)}"><label>Kleur</label><select name="category">' + ''.join(f'<option value="{k}" {"selected" if k == row["category"] else ""}>{v[1]}</option>' for k, v in CATEGORY_COLORS.items()) + '</select>'
-    body = f'<div class="card"><h2>Activiteit aanpassen</h2><form method="post" onsubmit="if(document.getElementById(\'rich\'))document.getElementById(\'bodyHtml\').value=document.getElementById(\'rich\').innerHTML"><input type="hidden" name="version" value="{esc(version, quote=True)}"><label>Datum</label><input type="date" name="date" value="{date}" required>{fields}<p><button>Wijzigingen opslaan</button> <a class="btn alt" href="/kalender-wijzigen">Annuleren</a></p></form></div>'
+        title_html = row['title_html'] if row['title_html'] and plain(row['title_html']) == row['title'] else esc(row['title'])
+        description_html = row['description_html'] if row['description_html'] and plain(row['description_html']) == row['description'] else esc(row['description']).replace('\n', '<br>')
+        fields = editor('title_html', clean_html(title_html), 'Tekst', required=True)
+        fields += f'<label>Beginuur</label><input type="time" name="start_time" value="{local.strftime("%H:%M") if not row["all_day"] else ""}"><label>Einduur</label><input type="time" name="end_time" value="{end.strftime("%H:%M") if not row["all_day"] else ""}">'
+        fields += editor('description_html', clean_html(description_html), 'Extra regels')
+        fields += f'<label>Locatie</label><input name="location" maxlength="500" value="{esc(row["location"], quote=True)}"><label>Standaardkleur</label><select name="category">' + ''.join(f'<option value="{k}" {"selected" if k == row["category"] else ""}>{v[1]}</option>' for k, v in CATEGORY_COLORS.items()) + '</select><p class="muted">Een kleur die je in de editor kiest, krijgt voorrang op de standaardkleur.</p>'
+    body = f'<div class="card"><h2>Activiteit aanpassen</h2><form method="post"><input type="hidden" name="version" value="{esc(version, quote=True)}"><label>Datum</label><input type="date" name="date" value="{date}" required>{fields}<p><button>Wijzigingen opslaan</button> <a class="btn alt" href="/kalender-wijzigen">Annuleren</a></p></form></div>'
     return HTMLResponse(page('Activiteit aanpassen', body))
 
 
@@ -478,16 +526,21 @@ async def save_row(key: str, request: Request):
             rich = clean_html(str(form.get('body_html', '')))
             if not plain(rich) or len(rich) > 20000:
                 raise HTTPException(400, 'Vul een geldige kalendertekst in.')
-            con.execute('UPDATE editor_lines SET date_local=?,body_html=?,title=?,version=version+1 WHERE id=?', (date, rich, plain(rich), row['id']))
+            con.execute('UPDATE editor_lines SET date_local=?,body_html=?,title=?,custom_format=?,version=version+1 WHERE id=?', (date, rich, plain(rich), int(has_custom_color(rich)), row['id']))
         else:
-            title = str(form.get('title', '')).strip()
+            title_html = clean_html(str(form.get('title_html', '')))
+            description_html = clean_html(str(form.get('description_html', '')))
+            title = plain(title_html) if 'title_html' in form else str(form.get('title', '')).strip()
+            description = plain(description_html) if 'description_html' in form else str(form.get('description', ''))
             if not title or len(title) > 500:
                 raise HTTPException(400, 'Vul een titel in van maximaal 500 tekens.')
+            if len(description) > 4000 or len(title_html) > 20000 or len(description_html) > 20000:
+                raise HTTPException(400, 'De opgemaakte tekst is te lang.')
             try:
                 start, end, untimed = _times_to_utc(date, str(form.get('start_time', '')), str(form.get('end_time', '')), False)
             except ValueError:
                 raise HTTPException(400, 'Controleer het begin- en einduur.')
-            con.execute('UPDATE events SET title=?,description=?,location=?,category=?,start_at=?,end_at=?,all_day=?,updated_at=? WHERE id=?', (title, str(form.get('description', ''))[:4000], str(form.get('location', ''))[:500], infer_category(title, str(form.get('category', 'auto'))), start, end, int(untimed), core.now_iso(), row['id']))
+            con.execute('UPDATE events SET title=?,description=?,location=?,category=?,start_at=?,end_at=?,all_day=?,updated_at=?,title_html=?,description_html=? WHERE id=?', (title, description, str(form.get('location', ''))[:500], infer_category(title, str(form.get('category', 'auto'))), start, end, int(untimed), core.now_iso(), title_html, description_html, row['id']))
         audit(con, 'calendar.line_changed', {'key': key, 'before': row})
         con.commit()
     finally:
@@ -520,8 +573,11 @@ def link_page(saved: int = 0):
     rows = [dict(r) for r in con.execute('SELECT * FROM editor_links WHERE deleted=0 ORDER BY id')]
     con.close()
     body = '<p class="ok">Link opgeslagen.</p>' if saved else ''
-    for row in [dict(id=0, description='', url='', version=0)] + rows:
-        body += f'<div class="card"><h2>{"Link toevoegen" if not row["id"] else "🔗 " + esc(row["description"])}</h2><form method="post" action="/kalender-link/{row["id"]}"><input type="hidden" name="version" value="{row["version"]}"><label>Omschrijving</label><input name="description" value="{esc(row["description"], quote=True)}" maxlength="200" required><label>Link</label><input name="url" value="{esc(row["url"], quote=True)}" maxlength="4096" required><p><button>Opslaan</button></p></form>'
+    for row in [dict(id=0, description='', description_html='', url='', version=0)] + rows:
+        label_html = row['description_html'] if row['description_html'] and plain(row['description_html']) == row['description'] else esc(row['description'])
+        body += f'<div class="card"><h2>{"Link toevoegen" if not row["id"] else "🔗 " + esc(row["description"])}</h2><form method="post" action="/kalender-link/{row["id"]}"><input type="hidden" name="version" value="{row["version"]}">'
+        body += editor('description_html', clean_html(label_html), 'Omschrijving', required=True, limit=8000, field_id='link-' + str(row['id']))
+        body += f'<label>Link</label><input name="url" value="{esc(row["url"], quote=True)}" maxlength="4096" required><p><button>Opslaan</button></p></form>'
         if row['id']:
             body += f'<form method="post" action="/kalender-link/{row["id"]}/verwijderen" onsubmit="return confirm(\'Deze link verwijderen?\')"><input type="hidden" name="version" value="{row["version"]}"><button class="danger">Verwijderen</button></form>'
         body += '</div>'
@@ -529,9 +585,17 @@ def link_page(saved: int = 0):
 
 
 @app.post('/kalender-link/{ident}')
-def save_link(ident: int, description: str = Form(...), url: str = Form(...), version: int = Form(0)):
+def save_link(ident: int, description: str = Form(''), url: str = Form(...), version: int = Form(0), description_html: str = Form('')):
+    rich = clean_html(description_html)
+    # Labels sit inside the destination link; nested anchors are invalid HTML.
+    label = BeautifulSoup(rich, 'html.parser')
+    for anchor in label.find_all('a'):
+        anchor.unwrap()
+    rich = str(label)
+    if description_html:
+        description = plain(rich)
     description, url = description.strip(), safe_url(url)
-    if not description or len(description) > 200:
+    if not description or len(description) > 200 or len(rich) > 8000:
         raise HTTPException(400, 'Vul een omschrijving in van maximaal 200 tekens.')
     con = core.db()
     try:
@@ -539,10 +603,10 @@ def save_link(ident: int, description: str = Form(...), url: str = Form(...), ve
         if con.execute('SELECT id FROM editor_links WHERE deleted=0 AND description=? AND url=? AND id!=?', (description, url, ident)).fetchone():
             raise HTTPException(409, 'Deze link bestaat al.')
         if ident:
-            if not con.execute('UPDATE editor_links SET description=?,url=?,version=version+1 WHERE id=? AND version=? AND deleted=0', (description, url, ident, version)).rowcount:
+            if not con.execute('UPDATE editor_links SET description=?,description_html=?,url=?,version=version+1 WHERE id=? AND version=? AND deleted=0', (description, rich, url, ident, version)).rowcount:
                 raise HTTPException(409, 'Deze link is ondertussen gewijzigd of verwijderd. Vernieuw de pagina.')
         else:
-            con.execute('INSERT INTO editor_links(description,url) VALUES(?,?)', (description, url))
+            con.execute('INSERT INTO editor_links(description,description_html,url) VALUES(?,?,?)', (description, rich, url))
         audit(con, 'calendar.link_saved', {'id': ident, 'description': description, 'url': url})
         con.commit()
     finally:
