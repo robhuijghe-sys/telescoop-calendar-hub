@@ -190,6 +190,27 @@ def setup_editor():
     from app.latest_source import apply_latest_source
     apply_latest_source(original_snapshot, split_lines, clean_html, plain, safe_url)
 
+    # One-time school-calendar update requested on 2026-10-01.
+    seed_key = 'seed_lien_nascholing_20261001'
+    con = core.db()
+    try:
+        if not con.execute("SELECT 1 FROM settings WHERE key=?", (seed_key,)).fetchone():
+            con.execute('BEGIN IMMEDIATE')
+            title = 'Lien nascholing – geen sport vandaag'
+            color = CATEGORY_COLORS['personeel'][0]
+            body = f'<span style="color:{color}">{esc(title)}</span>'
+            added = []
+            for date_local in ('2026-10-14', '2026-11-18', '2026-12-02'):
+                if not con.execute('SELECT 1 FROM editor_lines WHERE deleted=0 AND date_local=? AND title=?', (date_local, title)).fetchone():
+                    con.execute('INSERT INTO editor_lines(date_local,body_html,title) VALUES(?,?,?)', (date_local, body, title))
+                    added.append(date_local)
+                con.execute('DELETE FROM editor_days WHERE date_local=?', (date_local,))
+            con.execute("INSERT INTO settings(key,value) VALUES(?,?)", (seed_key, json.dumps({'added': added}, ensure_ascii=False)))
+            audit(con, 'calendar.seed_lien_nascholing', {'dates': ['2026-10-14', '2026-11-18', '2026-12-02'], 'added': added})
+            con.commit()
+    finally:
+        con.close()
+
 
 def edited_snapshot():
     con = core.db()
