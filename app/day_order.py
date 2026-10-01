@@ -1,9 +1,30 @@
-"""Stable display ordering; stored content and formatting remain untouched."""
+"""Stable display ordering and meeting groups; stored records stay untouched."""
 import re
 from bs4 import BeautifulSoup
 
 ABSENCE = re.compile(r'\b(?:afw\.?|afwezig(?:heid)?)\b', re.I)
 REPLACEMENT = re.compile(r'vervang|neemt\b.*\bover\b|→|->|gaat door met|geen (?:turnen|zwemmen|sport|les)|i\.p\.v\.', re.I)
+MEETING = re.compile(r'\b(?:[\w-]*vergadering(?:en)?|vakgroep(?:en)?|[\w-]*overleg|oudervereniging|klassenraad|klassenraden)\b', re.I)
+AGENDA = re.compile(r'^[*•–-]\s*|\bagendapunt(?:en)?\b', re.I)
+SWAP = re.compile(r'\b(?:wissel|leswissel|vervanging(?:en)?)\b', re.I)
+FORMAL_MEETING = re.compile(r'\b(?:vakgroep(?:en)?|[\w-]*vergadering(?:en)?)\b', re.I)
+MEETING_COLOR = '#8e44ad'
+
+
+def is_meeting(text):
+    """Do not turn an absence or a replacement mentioning a meeting into one."""
+    match = MEETING.search(text)
+    if not match or ABSENCE.search(text) or AGENDA.match(text):
+        return False
+    return not (REPLACEMENT.search(text[:match.start()]) or SWAP.search(text[:match.start()]))
+
+
+def meeting_reference(text):
+    match = re.search(r'\bvakgroep(?:vergadering)?\s*:?\s*(NED|WO|WIS|kleuter)\b', text, re.I)
+    if match:
+        return 'vakgroep ' + match[1].lower()
+    match = MEETING.search(text)
+    return match[0].lower() if match else None
 
 
 def is_replacement(text):
@@ -37,24 +58,55 @@ def time_key(text):
     match = re.search(r'(?<!\d)([01]?\d|2[0-3])(?:[:.h]([0-5]\d)|u([0-5]\d)?)(?!\d)', text, re.I)
     if match:
         return int(match[1])*60 + int(match[2] or match[3] or 0)
+    match = re.search(r'\b([01]?\d|2[0-3])\s+uur\b', text, re.I)
+    if match:
+        return int(match[1])*60
     match = re.search(r'\b(\d+)(?:ste|de)(?:\s+en\s+\d+(?:ste|de))?\s+(?:les)?uur\b', text, re.I)
     return 8*60 + (int(match[1])-1)*50 if match else 24*60
 
 
-def ordered_fragments(fragments):
+def meeting_time_key(text):
+    # School lesson periods include the morning break and lunch. A replacement
+    # time later in the description must not override the meeting's lesson slot.
+    lesson = re.search(r'\b([1-6])(?:ste|de)(?:\s+en\s+\d+(?:ste|de))?\s+lesuur\b', text, re.I)
+    clock = re.search(r'(?<!\d)([01]?\d|2[0-3])(?:[:.h][0-5]\d|u(?:[0-5]\d)?|\s+uur\b)', text, re.I)
+    if lesson and (not clock or lesson.start() < clock.start()):
+        return (525, 575, 640, 690, 800, 850)[int(lesson[1]) - 1]
+    return time_key(text)
+
+
+def ordered_fragments(fragments, style_meetings=False):
     fragments = group_workshops(fragments)
     texts = [BeautifulSoup(f, 'html.parser').get_text(' ', strip=True) for f in fragments]
-    meetings, stages, meeting_for = {}, [], None
+    meetings = {i: [] for i, text in enumerate(texts) if is_meeting(text)}
+    stages, meeting_for = [], None
     attached = set()
     for i, text in enumerate(texts):
-        if re.search(r'\b(?:team|personeels|vakgroep)?vergadering\b', text, re.I):
-            meetings[i] = []
-            meeting_for = i
+        if i in meetings:
+            # Agenda bullets remain with the team/vakgroep, even if a general
+            # zorgoverleg entry was imported between the heading and its agenda.
+            if meeting_for is None or FORMAL_MEETING.search(text):
+                meeting_for = i
         elif re.search(r'\bstage(?:s|stagiair)?\b|\bstagiair', text, re.I):
             stages.append(i)
-        elif meeting_for is not None and (re.match(r'^[*•–-]\s*', text) or re.search(r'\bagendapunt(?:en)?\b', text, re.I)):
+        elif meeting_for is not None and AGENDA.search(text):
             meetings[meeting_for].append(i)
             attached.add(i)
+    for i, text in enumerate(texts):
+        if i in meetings or i in attached or ABSENCE.search(text):
+            continue
+        if not (REPLACEMENT.search(text) or SWAP.search(text)):
+            continue
+        reference = meeting_reference(text)
+        candidates = [m for m in meetings if reference and meeting_reference(texts[m]) == reference]
+        if not candidates and SWAP.search(text):
+            candidates = [m for m in meetings if (ref := meeting_reference(texts[m]))
+                          and ref.startswith('vakgroep ')
+                          and re.search(r'\b' + re.escape(ref.split()[-1]) + r'\b', text, re.I)]
+        if len(candidates) == 1:
+            meetings[candidates[0]].append(i)
+            attached.add(i)
+    stages = [i for i in stages if i not in attached]
     bottom = set(meetings) | set(stages) | attached
     absent = [i for i,t in enumerate(texts) if i not in bottom and ABSENCE.search(t)]
     groups = {i: [] for i in absent}
@@ -81,7 +133,11 @@ def ordered_fragments(fragments):
     order.extend(sorted(loose, key=lambda i: time_key(texts[i])))
     order.extend(sorted(rest, key=lambda i: time_key(texts[i])))
     order.extend(sorted(stages, key=lambda i: time_key(texts[i])))
-    for meeting in sorted(meetings, key=lambda i: time_key(texts[i])):
-        order.append(meeting)
-        order.extend(meetings[meeting])
-    return [fragments[i] for i in order]
+    result = [fragments[i] for i in order]
+    for meeting in sorted(meetings, key=lambda i: meeting_time_key(texts[i])):
+        group = [fragments[i] for i in [meeting] + sorted(meetings[meeting])]
+        if style_meetings:
+            result.append('<div class="meeting-group">' + ''.join(group) + '</div>')
+        else:
+            result.extend(group)
+    return result
