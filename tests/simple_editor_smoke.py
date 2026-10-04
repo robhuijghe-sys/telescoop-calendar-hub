@@ -12,6 +12,21 @@ Path(os.environ['CALENDAR_SNAPSHOT_PATH']).write_text(json.dumps({'focus': {'202
 from fastapi.testclient import TestClient
 from app.simple_calendar import app, setup_editor, rows_all, split_lines
 import app.main as core
+import app.simple_calendar as editor
+import app.calendar_snapshot as snapshot
+from datetime import datetime as RealDatetime, timezone
+
+
+class FixtureClock(RealDatetime):
+    @classmethod
+    def now(cls, tz=None):
+        instant = RealDatetime(2026, 10, 1, 8, tzinfo=timezone.utc)
+        return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+
+
+# Keep fixed fixture dates visible regardless of the actual build date.
+# Only rendering/cache clocks change; real edit timestamps still advance.
+editor.datetime = snapshot.datetime = FixtureClock
 
 with TestClient(app) as client:
     assert client.get('/').status_code == 200
