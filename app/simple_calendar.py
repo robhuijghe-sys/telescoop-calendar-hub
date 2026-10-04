@@ -28,7 +28,7 @@ from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html
 
-BUILD = 'railway-editor-20261004-current-edit-list'
+BUILD = 'railway-editor-20261004-preserve-line-breaks'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -39,6 +39,12 @@ original_interpret = deletion.public_interpret_add_delete
 lock = threading.Lock()
 cache = {}
 FONT_CSS = '''@font-face{font-family:Roboto;font-style:normal;font-weight:400;font-display:swap;src:url(/calendar-fonts/roboto-latin-400.woff2)}@font-face{font-family:Roboto;font-style:normal;font-weight:700;font-display:swap;src:url(/calendar-fonts/roboto-latin-700.woff2)}html,body,input,textarea,select,button,.base-content,.base-content *{font-family:Aptos,Roboto,"Segoe UI",Arial,sans-serif!important}.quick{margin-bottom:7px!important}.quick a{overflow-wrap:anywhere}.editbox{border:1px solid #c9c2bd;border-radius:8px;padding:14px;min-height:100px;line-height:1.6}.row{display:flex;align-items:center;gap:10px;border-top:1px solid #eee;padding:12px 0}.row .text{flex:1;min-width:0;overflow-wrap:anywhere}.row form{margin:0}.danger{background:#8a2f2f}nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}input:focus,textarea:focus,button:focus-visible,[contenteditable]:focus{outline:3px solid #b4c9e6;outline-offset:2px}@media(max-width:600px){.row{flex-wrap:wrap}.row .text{flex-basis:100%}}'''
+
+# Match the editor's whitespace handling, including literal newlines saved by
+# Firefox or the HTML source field. Scope this to user content so whitespace in
+# the page template does not add empty lines. Shared by desktop and mobile.
+FONT_CSS += '.base-content,.event-line,.quick a{white-space:pre-wrap}.base-content p,.base-content div{margin:0}'
+
 
 MIDNIGHT_SCRIPT = """<script id="calendar-midnight">
 (() => {
