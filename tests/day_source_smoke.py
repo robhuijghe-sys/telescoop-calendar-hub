@@ -32,9 +32,19 @@ with TestClient(editor.app) as c:
     Clock.current='2026-10-01T21:59:59+00:00'
     before=c.get('/smartschool-calendar')
     assert 'data-calendar-date="2026-10-01"' in before.text
+    edit_before=c.get('/kalender-wijzigen').text
+    assert '5 kalenderregels' in edit_before and 'Extra event' in edit_before and 'User change' in edit_before
+    assert 'id="editor-day-refresh"' in edit_before and 'const renderedDay = "2026-10-01"' in edit_before
     Clock.current='2026-10-01T22:00:00+00:00'
     after=c.get('/smartschool-calendar',headers={'If-None-Match':before.headers['etag']})
     assert after.status_code==200 and 'data-calendar-date="2026-10-01"' not in after.text
+    edit_after=c.get('/kalender-wijzigen').text
+    assert '1 kalenderregels' in edit_after and 'Adjacent' in edit_after
+    assert 'Extra event' not in edit_after and 'User change' not in edit_after
+    assert 'const renderedDay = "2026-10-02"' in edit_after
+    assert '0 kalenderregels' in c.get('/kalender-wijzigen?date=2026-10-01').text
+    assert '0 kalenderregels' in c.get('/kalender-wijzigen?q=Extra+event').text
+    assert 'Adjacent' in c.get('/kalender-wijzigen?p=99').text
     assert len(editor.rows_all())==5
     Clock.current='2026-09-30T21:59:59+00:00'
     assert c.post('/kalender-dag-verwijderen',data={'date':'2026-02-30'}).status_code==400

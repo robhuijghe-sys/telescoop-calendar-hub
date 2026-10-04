@@ -28,7 +28,7 @@ from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html
 
-BUILD = 'railway-editor-20261001-meeting-order'
+BUILD = 'railway-editor-20261004-current-edit-list'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -472,8 +472,10 @@ def edit_list(q: str = '', date: str = '', p: int = 1, saved: int = 0):
     def normalized(s):
         return ''.join(c for c in unicodedata.normalize('NFD', s.lower()) if not unicodedata.combining(c)).replace('afwezigheid', 'afwezig')
     terms = normalized(q).split()
-    rows = [r for r in rows_all() if (not date or r['date'] == date) and all(t in normalized(r['date'] + ' ' + r['date'][8:] + '/' + r['date'][5:7] + ' ' + r['title']) for t in terms)]
-    start = max(0, p - 1) * 60
+    today = datetime.now(core.TZ).date().isoformat()
+    rows = [r for r in rows_all() if r['date'] >= today and (not date or r['date'] == date) and all(t in normalized(r['date'] + ' ' + r['date'][8:] + '/' + r['date'][5:7] + ' ' + r['title']) for t in terms)]
+    p = min(max(1, p), max(1, (len(rows) + 59) // 60))
+    start = (p - 1) * 60
     body = '<p class="ok">Wijziging opgeslagen.</p>' if saved else ''
     body += '<div class="card"><h2>Een volledige dag verwijderen</h2><p>Voorbije dagen verdwijnen automatisch na middernacht, volgens Belgische tijd. Hieronder kun je ook zelf een dag met alle activiteiten en vervangingen verwijderen.</p><form method="post" action="/kalender-dag-verwijderen" onsubmit="return confirm(\'Deze hele dag met ALLE activiteiten en vervangingen verwijderen?\')"><label>Dag</label><input type="date" name="date" required><p><button class="danger">Hele dag verwijderen</button></p></form></div>'
     body += f'<div class="card"><h2>Kalender wijzigen</h2><form><label>Zoeken op tekst of datum</label><input name="q" value="{esc(q, quote=True)}"><label>Datum (optioneel)</label><input type="date" name="date" value="{esc(date, quote=True)}"><p><button>Zoeken</button> <a href="/kalender-wijzigen">Alles tonen</a></p></form><p>{len(rows)} kalenderregels</p>'
@@ -483,7 +485,22 @@ def edit_list(q: str = '', date: str = '', p: int = 1, saved: int = 0):
     for number, label in ((p - 1, 'Vorige'), (p + 1, 'Volgende')):
         if number > 0 and (number < p or start + 60 < len(rows)):
             body += '<p><a href="/kalender-wijzigen?' + esc(urlencode(dict(q=q, date=date, p=number)), quote=True) + '">' + label + '</a></p>'
-    return HTMLResponse(page('Kalender wijzigen', body + '</div>'))
+    # Refresh only this list when the Belgian date changes, including a tab
+    # that was suspended overnight. Edit forms are never reloaded.
+    refresh = '''<script id="editor-day-refresh">
+(() => {
+  const renderedDay = %s;
+  const formatter = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit'});
+  function refreshDay() {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date()).map(p => [p.type,p.value]));
+    if (parts.year + '-' + parts.month + '-' + parts.day !== renderedDay) window.location.reload();
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshDay(); });
+  setInterval(refreshDay, 60000);
+  refreshDay();
+})();
+</script>''' % json.dumps(today)
+    return HTMLResponse(page('Kalender wijzigen', body + '</div>' + refresh))
 
 
 def get_row(con, key):
