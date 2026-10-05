@@ -9,6 +9,9 @@ AGENDA = re.compile(r'^[*•–-]\s*|\bagendapunt(?:en)?\b', re.I)
 SWAP = re.compile(r'\b(?:wissel|leswissel|vervanging(?:en)?)\b', re.I)
 FORMAL_MEETING = re.compile(r'\b(?:vakgroep(?:en)?|[\w-]*vergadering(?:en)?)\b', re.I)
 MEETING_COLOR = '#8e44ad'
+READING_BLOCK = re.compile(
+    r'^(?:[23]\s+weken\s+(?:LIST|close\s+reading)|LIST\s+tot\s+einde\s+schooljaar)'
+    r'(?:\s*\([^)]*\))?$', re.I)
 
 
 def is_meeting(text):
@@ -78,6 +81,8 @@ def meeting_time_key(text):
 def ordered_fragments(fragments, style_meetings=False):
     fragments = group_workshops(fragments)
     texts = [BeautifulSoup(f, 'html.parser').get_text(' ', strip=True) for f in fragments]
+    reading_blocks = {fragment for fragment, text in zip(fragments, texts)
+                      if READING_BLOCK.fullmatch(text)}
     meetings = {i: [] for i, text in enumerate(texts) if is_meeting(text)}
     stages, meeting_for = [], None
     attached = set()
@@ -140,4 +145,5 @@ def ordered_fragments(fragments, style_meetings=False):
             result.append('<div class="meeting-group">' + ''.join(group) + '</div>')
         else:
             result.extend(group)
-    return result
+    # Pin the period labels first; keep all other activity and meeting ordering.
+    return sorted(result, key=lambda fragment: fragment not in reading_blocks)
