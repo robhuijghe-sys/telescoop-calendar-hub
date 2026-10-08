@@ -1,0 +1,111 @@
+"""Whole-day saves preserve content and reject stale edits atomically."""
+import json
+import os
+import sys
+import tempfile
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from bs4 import BeautifulSoup
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+temp = tempfile.TemporaryDirectory()
+os.environ.update(DB_PATH=temp.name + '/calendar.db', CALENDAR_SNAPSHOT_PATH=temp.name + '/snapshot.json',
+                  APP_SECRET='test-only', ADMIN_RESET_PASSWORD='', ENABLE_ADMIN_RECOVERY_LOG='false',
+                  CALENDAR_SOURCE_GZ_B64='', CALENDAR_LINKS_GZ_B64='', CALENDAR_SNAPSHOT_GZ_B64='')
+Path(os.environ['CALENDAR_SNAPSHOT_PATH']).write_text(json.dumps({'focus': {}, 'entries': []}))
+from fastapi.testclient import TestClient
+from app.simple_calendar import app, rows_all
+import app.main as core
+
+day = (datetime.now(core.TZ).date() + timedelta(days=1)).isoformat()
+other = (datetime.now(core.TZ).date() + timedelta(days=2)).isoformat()
+
+
+def edit(client):
+    response = client.get('/kalender-dag/' + day)
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.text, 'html.parser')
+    return {'version': soup.select_one('input[name=version]')['value'],
+            'body_html': soup.select_one('textarea[name=body_html]').get_text()}
+
+
+with TestClient(app) as client:
+    client.post('/kalender-toevoegen', data={'date': day, 'lines_html':
+        '<span style="color:#8e44ad">15u30: teamvergadering</span><br>'
+        '<span style="color:#8e44ad">* agenda: lezen <a href="https://example.org/agenda">document</a></span><br>'
+        '<span style="color:#d01234">Eline afwezig</span>'})
+    client.post('/public/create', data={'date': day, 'title': 'Bibliotheek', 'start_time': '09:00',
+                                       'end_time': '10:00', 'location': 'Laken', 'description': 'Neem boeken mee'})
+    client.post('/kalender-toevoegen', data={'date': other, 'lines': 'Andere dag'})
+    listing = BeautifulSoup(client.get('/kalender-wijzigen').text, 'html.parser')
+    assert len(listing.select('.day-card')) == 2
+    assert len(listing.select('dialog')) == 2
+    assert len(listing.select('[data-edit-day]')) == 2
+    assert not listing.select('a[href^="/kalender-regel/"]')
+    assert len(listing.select('dialog textarea')) == 2
+    # Searching a single agenda phrase still opens all content on its day.
+    search = BeautifulSoup(client.get('/kalender-wijzigen?q=boeken').text, 'html.parser')
+    assert len(search.select('.day-card')) == 1
+    assert 'Eline afwezig' in search.select_one('.day-preview').get_text()
+
+    initial = edit(client)
+    assert '09.00-10.00u: Bibliotheek — Laken' in initial['body_html']
+    assert 'Neem boeken mee' in initial['body_html']
+    before = rows_all()
+    # Unmodified submits preserve IDs and original structured event metadata.
+    assert client.post('/kalender-dag/' + day, data=initial, follow_redirects=False).status_code == 303
+    assert rows_all() == before
+    serialized = dict(initial, body_html=initial['body_html'].replace('#8e44ad', 'rgb(142, 68, 173)'))
+    assert client.post('/kalender-dag/' + day, data=serialized, follow_redirects=False).status_code == 303
+    assert rows_all() == before
+    # Other-day changes do not block the save; changes on this day do.
+    client.post('/kalender-toevoegen', data={'date': other, 'lines': 'Extra op andere dag'})
+    changed = dict(initial, body_html=initial['body_html'].replace('agenda: lezen', 'agenda: woordenschat') + '<br>Nieuwe afspraak')
+    result = client.post('/kalender-dag/' + day, data=changed, follow_redirects=False)
+    assert result.status_code == 303
+    current = rows_all()
+    assert len([r for r in current if r['id'].startswith('event:')]) == 1
+    assert any(r['title'] == 'Nieuwe afspraak' for r in current)
+    rendered = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
+    for selector in ('.desktop-calendar .event-cell', '.mobile-calendar .mobile-events'):
+        contents = rendered.select_one(selector)
+        assert contents.get_text().count('Bibliotheek') == 1
+        assert 'agenda: woordenschat' in contents.get_text()
+        assert contents.select_one('a[href="https://example.org/agenda"]')
+        assert 'agenda: lezen' not in contents.get_text()
+        assert 'teamvergadering' in contents.select_one('.meeting-group').get_text()
+    assert client.post('/kalender-dag/' + day, data=changed).status_code == 409
+    assert rows_all() == current
+
+    stale = edit(client)
+    client.post('/kalender-toevoegen', data={'date': day, 'lines': 'Nieuw van collega'})
+    before_conflict = rows_all()
+    stale['body_html'] += '<br>Mijn onopgeslagen tekst'
+    conflict = client.post('/kalender-dag/' + day, data=stale)
+    assert conflict.status_code == 409 and 'Mijn onopgeslagen tekst' in conflict.text
+    assert 'Dag opnieuw openen' in conflict.text and rows_all() == before_conflict
+    fresh = edit(client)
+    assert client.post('/kalender-dag/' + day, data=dict(fresh, body_html='')).status_code == 400
+    assert rows_all() == before_conflict
+    # Editing a timed event in the full-day document does not duplicate it.
+    fresh['body_html'] = fresh['body_html'].replace('Bibliotheek', 'Museum')
+    fresh['body_html'] += '<br><span onclick="alert(1)">Veilig</span><script>alert(1)</script>'
+    assert client.post('/kalender-dag/' + day, data=fresh).status_code == 200
+    html = client.get('/smartschool-calendar').text
+    assert 'Museum — Laken' in html and '09.00-10.00u:' in html
+    assert 'Bibliotheek' not in html and 'onclick=' not in html and '<script>alert' not in html
+    assert 'Neem boeken mee' in html and 'Andere dag' in html
+    con = core.db()
+    audit = json.loads(con.execute("SELECT payload FROM audit_log WHERE action='calendar.day_changed' ORDER BY id DESC LIMIT 1").fetchone()[0])
+    assert audit['before']['events'][0]['title'] == 'Bibliotheek'
+    con.close()
+    # Deletion in another window also invalidates an open day editor.
+    stale = edit(client)
+    client.post('/kalender-dag-verwijderen', data={'date': day})
+    assert client.post('/kalender-dag/' + day, data=stale).status_code == 409
+    assert not [r for r in rows_all() if r['date'] == day]
+    assert client.get('/kalender-dag/2026-02-31').status_code == 400
+
+print('TCH_DAY_EDITOR_SMOKE_TEST=PASS')
+temp.cleanup()

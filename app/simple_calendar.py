@@ -28,7 +28,7 @@ from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html
 
-BUILD = 'railway-editor-20261004-preserve-line-breaks'
+BUILD = 'railway-editor-20261008-whole-day'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -79,6 +79,9 @@ def safe_url(value):
 
 
 def clean_html(value):
+    # Consistent void tags prevent mixed <br>/<br/> markup from swallowing
+    # subsequent content when a full day combines several stored fragments.
+    value = re.sub(r'<br\s*/?>', '<br/>', value, flags=re.I)
     soup = BeautifulSoup(value, 'html.parser')
     for tag in list(soup.find_all(True)):
         if not tag.name:
@@ -249,7 +252,8 @@ async def editor_headers(request: Request, call_next):
         # This editor is deliberately public and does not use account credentials.
         if origin and origin != 'null' and origin not in allowed_origins:
             return Response('Open de kalender in een eigen tabblad.', status_code=403)
-        if len(await request.body()) > 65536:
+        limit = 1300000 if request.url.path.startswith('/kalender-dag/') else 65536
+        if len(await request.body()) > limit:
             return Response('Invoer te groot.', status_code=413)
     response = await call_next(request)
     if request.method == 'POST' and request.url.path in ('/public/create', '/kalender-toevoegen', '/kalender-uitstap') and response.status_code == 303:
@@ -660,3 +664,9 @@ def delete_link(ident: int, version: int = Form(...)):
     finally:
         con.close()
     return RedirectResponse('/kalender-links?saved=1', 303)
+
+
+# Register the day-level interface after the shared editor helpers are defined.
+from app.day_editor import register_day_editor
+import sys
+register_day_editor(sys.modules[__name__])
