@@ -26,9 +26,9 @@ import app.delete_flow as deletion
 from app.outing_format import outing_label, bulk_outing
 from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
-from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html
+from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 
-BUILD = 'railway-editor-20261008-whole-day'
+BUILD = 'railway-editor-20261008-compact-regular'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -300,7 +300,7 @@ def calendar(request: Request):
             hidden = {r[0] for r in con.execute('SELECT date_local FROM editor_days WHERE hidden=1')}
             con.close()
             doc = snapshot.render_snapshot_calendar(hide_past=True, hidden_dates=hidden).replace('http-equiv="refresh" content="30"', f'http-equiv="refresh" content="{REFRESH_SECONDS}"')
-            doc = doc.replace('</style>', FONT_CSS + '</style>', 1)
+            doc = without_bold(doc).replace('</style>', FONT_CSS + '.wrap,.wrap *{font-weight:400!important}' + '</style>', 1)
             doc = doc.replace('</body>', MIDNIGHT_SCRIPT + '</body>')
             cache.update(key=key, doc=doc, etag='"' + hashlib.sha256(doc.encode()).hexdigest() + '"')
         doc, etag = cache['doc'], cache['etag']

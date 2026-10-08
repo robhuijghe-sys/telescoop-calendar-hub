@@ -14,9 +14,9 @@ from app.calendar_dynamic import _event_line
 
 
 CSS = '''
-.day-card{border:1px solid #cbd5e1;border-top:3px solid #203555;border-radius:10px;margin:22px 0;overflow:hidden}.day-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#edf1f7;padding:12px 16px;border-bottom:1px solid #cbd5e1}.day-heading h3{margin:0;font-size:17px;color:#203555}.day-preview{line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px}.day-preview p,.day-preview div{margin:0}.day-preview a{color:inherit}
+.day-card{border:1px solid #cbd5e1;border-top:2px solid #203555;border-radius:8px;margin:18px 0;overflow:hidden}.day-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#edf1f7;padding:6px 12px;border-bottom:1px solid #cbd5e1}.day-heading h3{margin:0;font-size:15px;font-weight:400;color:#203555}.day-heading .btn{padding:5px 10px;font-size:14px;line-height:1.3;margin:0;width:auto}.day-preview{line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px}.day-preview,.day-preview *,.day-form .editor-visual,.day-form .editor-visual *{font-weight:400!important}.day-preview p,.day-preview div{margin:0}.day-preview a{color:inherit}
 .day-dialog{border:1px solid #e5dfd8;border-radius:16px;padding:0;width:min(920px,calc(100% - 24px));max-height:90vh;max-height:90dvh;color:#2f2926}.day-dialog::backdrop{background:rgba(20,32,49,.55)}.day-dialog .day-form{padding:22px}.day-form .editor-visual,.day-form textarea{min-height:300px;max-height:50vh;overflow:auto;font-size:16px}.day-actions{display:flex;flex-wrap:wrap;gap:10px;position:sticky;bottom:0;background:white;padding:12px 0;margin:0}.day-error{background:#fff5d9;border:1px solid #efd28a;border-radius:8px;padding:12px}.day-form h2{margin:0 0 10px}label,.muted{font-size:14px}
-@media(max-width:600px){.day-heading{align-items:flex-start;flex-direction:column}.day-heading .btn{width:100%}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:230px}}
+@media(max-width:600px){.day-heading{gap:8px;padding:6px 10px}.day-heading .btn{width:auto}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:230px}}
 '''
 
 SCRIPT = '''<script id="whole-day-windows">
@@ -70,8 +70,8 @@ def register_day_editor(s):
         hidden = con.execute('SELECT hidden FROM editor_days WHERE date_local=?', (date,)).fetchone()
         state = {'basis': basis, 'events': events, 'hidden': hidden[0] if hidden else None}
         token = hashlib.sha256(json.dumps(state, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-        fragments = [s.clean_html(r['body_html']) for r in basis]
-        fragments += [s.clean_html(_event_line(r)) for r in events]
+        fragments = [s.without_bold(s.clean_html(r['body_html'])) for r in basis]
+        fragments += [s.without_bold(s.clean_html(_event_line(r))) for r in events]
         rich = '<br/>'.join(ordered_fragments(fragments))
         return state, token, rich
 
@@ -132,7 +132,7 @@ def register_day_editor(s):
         for ds, token, rich, count in days[start:start + 20]:
             ident = 'day-window-' + ds
             body += (f'<section class="day-card"><div class="day-heading"><h3>{label(ds)}</h3>'
-                     f'<a class="btn" href="/kalender-dag/{ds}" data-edit-day="{ident}">Dag bewerken</a></div>'
+                     f'<a class="btn" href="/kalender-dag/{ds}" data-edit-day="{ident}">Bewerken</a></div>'
                      f'<div class="day-preview">{rich}</div></section>')
             dialogs.append(f'<dialog class="day-dialog" id="{ident}" aria-labelledby="day-title-{ds}">'
                            + form(ds, token, rich, modal=True) + '</dialog>')
@@ -174,7 +174,7 @@ def register_day_editor(s):
     @s.app.post('/kalender-dag/{date}')
     def save_day(date: str, version: str = Form(...), body_html: str = Form('')):
         s.valid_date(date)
-        rich = s.clean_html(body_html)
+        rich = s.without_bold(s.clean_html(body_html))
         if len(body_html) > 100000 or len(rich) > 100000 or not s.plain(rich):
             return HTMLResponse(document('Dag bewerken', '<div class="card">' + form(
                 date, version, rich[:100000], error='Vul kalendertekst in (maximaal 100.000 tekens). Gebruik “Hele dag verwijderen” om alles te wissen.') + '</div>'), status_code=400)
@@ -193,7 +193,7 @@ def register_day_editor(s):
             for event in before['events']:
                 # Keep unrelated structured events (hours, category, metadata)
                 # intact when their full rendered text remains in the day.
-                event_fragments = s.split_lines(s.clean_html(_event_line(event)))
+                event_fragments = s.split_lines(s.without_bold(s.clean_html(_event_line(event))))
                 event_signatures = list(map(signature, event_fragments))
                 remaining = list(map(signature, fragments))
                 match = next((i for i in range(len(remaining) - len(event_signatures) + 1)

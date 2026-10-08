@@ -39,7 +39,7 @@ with TestClient(app) as client:
     for selector in ('.desktop-calendar', '.mobile-calendar'):
         view = soup.select_one(selector)
         label = view.find('span', string=expected)
-        assert label and label['style'] == 'color:#5dade2;font-weight:700'
+        assert label and label['style'] == 'color:#5dade2'
         assert '15.30-17.00u: Oudercontact L1' in view.get_text()
         assert view.get_text().count(expected) == 1
         assert '08.30-12.40u: Stage' not in view.get_text()
@@ -58,12 +58,12 @@ with TestClient(app) as client:
     assert ' van ' not in _event_line({**original, 'title': 'Stage Noha', 'all_day': 1})
     assert '&lt;script&gt;' in _event_line({**original, 'title': 'Stage <script>'})
     assert infer_category('Stage Fatima Zahra van 13u20 tot 17u00') == 'stage'
-    # Plain-line additions get the same blue and bold style as timed stage events.
+    # Plain-line additions get the same blue regular style as timed stage events.
     assert client.post('/kalender-toevoegen', follow_redirects=False, data={
         'date': day, 'lines': 'Stage Fatima Zahra van 13u20 tot 17u00'}).status_code == 303
     updated = client.get('/smartschool-calendar')
     label = BeautifulSoup(updated.text, 'html.parser').find('span', string='Stage Fatima Zahra van 13u20 tot 17u00')
-    assert label and label['style'] == 'color:#5dade2;font-weight:700'
+    assert label and label['style'] == 'color:#5dade2'
     assert updated.headers['etag'] != response.headers['etag']
 
-print('OK: stages blue/bold, local hours after name, both views, no data changes or duplicate hours')
+print('OK: stages blue/regular, local hours after name, both views, no data changes or duplicate hours')

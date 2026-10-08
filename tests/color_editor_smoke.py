@@ -113,7 +113,9 @@ with TestClient(app) as client:
         assert 'color:' + expected in saved['body_html'] and saved['custom_format'] == 0
         if category in ('stage','secretariaat'):
             assert 'font-weight:700' in saved['body_html']
-        assert saved['body_html'] in client.get('/smartschool-calendar').text
+        rendered = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
+        assert title in rendered.get_text() and 'color:' + expected in str(rendered)
+        assert not rendered.select('b,strong')
     from app.calendar_dynamic import infer_category
     assert infer_category('Secretariaat belt ouders zonder afspraak') == 'secretariaat'
     response = client.post('/kalender-toevoegen', data={'date':'2026-10-16','category':'secretariaat','structured':'1','lines_html':'<span style="color:#123456">Kopieën maken</span>'}, follow_redirects=False)

@@ -40,7 +40,11 @@ with TestClient(app) as client:
     assert first.status_code == 200
     assert 'content="7200"' in first.text
     assert 'Aptos,Roboto' in first.text and '/calendar-fonts/roboto-latin-400.woff2' in first.text
-    assert 'href="/" target="_blank" rel="noopener noreferrer">🔗 Kalender wijzigen</a>' in first.text and 'Focus lezen' in first.text
+    from bs4 import BeautifulSoup
+    calendar_link = BeautifulSoup(first.text, 'html.parser').select_one('.quick a[href="/"]')
+    assert calendar_link and calendar_link['target'] == '_blank'
+    assert {'noopener', 'noreferrer'} <= set(calendar_link['rel'])
+    assert calendar_link.get_text() == '🔗 Kalender wijzigen' and 'Focus lezen' in first.text
     assert 'https://telescoop-sgr8.smartschool.be/deeplink/123' in first.text
     assert client.get('/smartschool-calendar', headers={'If-None-Match': first.headers['etag']}).status_code == 304
     assert client.get('/calendar-fonts/roboto-latin-400.woff2').status_code == 200

@@ -1,8 +1,24 @@
 """Small shared HTML editor and formatting-preserving text normalization."""
 import html
+import re
 from difflib import SequenceMatcher
 
 from bs4 import BeautifulSoup, NavigableString
+
+
+def without_bold(value):
+    """Remove bold presentation while retaining every word, color and link."""
+    soup = BeautifulSoup(value, 'html.parser')
+    for tag in soup.find_all(('b', 'strong')):
+        tag.unwrap()
+    for tag in soup.find_all(style=True):
+        style = ';'.join(part for part in tag['style'].split(';')
+                         if not re.match(r'\s*font-weight\s*:', part, re.I))
+        if style:
+            tag['style'] = style
+        else:
+            del tag['style']
+    return str(soup)
 
 
 def fragment_text(value):

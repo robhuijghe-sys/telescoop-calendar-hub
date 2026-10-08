@@ -34,7 +34,7 @@ with TestClient(app) as client:
     client.post('/kalender-toevoegen', data={'date': day, 'lines_html':
         '<span style="color:#8e44ad">15u30: teamvergadering</span><br>'
         '<span style="color:#8e44ad">* agenda: lezen <a href="https://example.org/agenda">document</a></span><br>'
-        '<span style="color:#d01234">Eline afwezig</span>'})
+        '<span style="color:#d01234;font-weight:700"><b>Eline</b> <strong>afwezig</strong></span>'})
     client.post('/public/create', data={'date': day, 'title': 'Bibliotheek', 'start_time': '09:00',
                                        'end_time': '10:00', 'location': 'Laken', 'description': 'Neem boeken mee'})
     client.post('/kalender-toevoegen', data={'date': other, 'lines': 'Andere dag'})
@@ -44,6 +44,13 @@ with TestClient(app) as client:
     assert len(listing.select('[data-edit-day]')) == 2
     assert not listing.select('a[href^="/kalender-regel/"]')
     assert len(listing.select('dialog textarea')) == 2
+    assert listing.select_one('[data-edit-day]').get_text() == 'Bewerken'
+    assert not listing.select('.day-preview b,.day-preview strong')
+    assert not any('font-weight:' in tag.get('style', '') for tag in listing.select('.day-preview [style]'))
+    calendar = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
+    assert not calendar.select('b,strong')
+    assert not any('font-weight:' in tag.get('style', '') for tag in calendar.select('[style]'))
+    assert '.wrap,.wrap *{font-weight:400!important}' in str(calendar)
     # Searching a single agenda phrase still opens all content on its day.
     search = BeautifulSoup(client.get('/kalender-wijzigen?q=boeken').text, 'html.parser')
     assert len(search.select('.day-card')) == 1
