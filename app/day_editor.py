@@ -127,7 +127,7 @@ def register_day_editor(s):
                  f'<label>Zoeken op tekst of datum</label><input name="q" value="{s.esc(q, quote=True)}">'
                  f'<label>Datum (optioneel)</label><input type="date" name="date" value="{s.esc(date, quote=True)}">'
                  '<p><button>Zoeken</button> <a href="/kalender-wijzigen">Alles tonen</a></p></form>'
-                 f'<p class="muted">{len(days)} dagen · {sum(d[3] for d in days)} kalenderregels</p>')
+                 f'<p class="muted">{len(days)} {"dag" if len(days) == 1 else "dagen"} · {sum(d[3] for d in days)} kalenderregels</p>')
         dialogs = []
         for ds, token, rich, count in days[start:start + 20]:
             ident = 'day-window-' + ds
