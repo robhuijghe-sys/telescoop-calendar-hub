@@ -27,14 +27,16 @@ from app.outing_format import outing_label, bulk_outing
 from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
+from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261008-compact-regular'
+BUILD = 'railway-editor-20261008-school-theme-delete'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
 original_snapshot = snapshot._load_snapshot
 original_links = snapshot._top_links_html
 original_page = public.public_page
+original_management_page = core.page
 original_interpret = deletion.public_interpret_add_delete
 lock = threading.Lock()
 cache = {}
@@ -234,11 +236,16 @@ snapshot._top_links_html = links_html
 
 def page(title, body):
     nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a></nav>'
-    return original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js" defer></script></body>')
+    return themed_document(original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js" defer></script></body>'))
+
+
+def management_page(title, body, user=None):
+    return themed_document(original_management_page(title, body, user))
 
 
 public.public_page = page
 deletion.public_page = page
+core.page = management_page
 app.mount('/calendar-fonts', StaticFiles(directory=Path(__file__).parent / 'static/fonts'), name='calendar-fonts')
 app.mount('/calendar-editor', StaticFiles(directory=Path(__file__).parent / 'static'), name='calendar-editor')
 
@@ -301,6 +308,7 @@ def calendar(request: Request):
             con.close()
             doc = snapshot.render_snapshot_calendar(hide_past=True, hidden_dates=hidden).replace('http-equiv="refresh" content="30"', f'http-equiv="refresh" content="{REFRESH_SECONDS}"')
             doc = without_bold(doc).replace('</style>', FONT_CSS + '.wrap,.wrap *{font-weight:400!important}' + '</style>', 1)
+            doc = themed_document(doc)
             doc = doc.replace('</body>', MIDNIGHT_SCRIPT + '</body>')
             cache.update(key=key, doc=doc, etag='"' + hashlib.sha256(doc.encode()).hexdigest() + '"')
         doc, etag = cache['doc'], cache['etag']
@@ -404,11 +412,16 @@ def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Fo
 
 
 @app.post('/kalender-dag-verwijderen')
-def delete_day(date: str = Form(...)):
+def delete_day(date: str = Form(...), version: str = Form('')):
     valid_date(date)
     con = core.db()
     try:
         con.execute('BEGIN IMMEDIATE')
+        if version and version != day_records(con, date)[1]:
+            return HTMLResponse(page('Dag ondertussen gewijzigd',
+                '<div class="card"><h2>Dag ondertussen gewijzigd</h2>'
+                '<p role="alert">Deze dag is ondertussen gewijzigd. Controleer de nieuwste inhoud vóór je de dag wist.</p>'
+                '<p><a class="btn" href="/kalender-wijzigen?date=' + date + '">Dag opnieuw bekijken</a></p></div>'), status_code=409)
         basis = [dict(r) for r in con.execute('SELECT * FROM editor_lines WHERE date_local=? AND deleted=0', (date,))]
         events = [dict(r) for r in con.execute('SELECT * FROM events WHERE visible_in_embed=1') if datetime.fromisoformat(r['start_at']).astimezone(core.TZ).date().isoformat() == date]
         con.execute('UPDATE editor_lines SET deleted=1,version=version+1 WHERE date_local=? AND deleted=0', (date,))
@@ -419,7 +432,7 @@ def delete_day(date: str = Form(...)):
         con.commit()
     finally:
         con.close()
-    return RedirectResponse('/kalender-wijzigen?saved=1', 303)
+    return RedirectResponse('/kalender-wijzigen?deleted=1', 303)
 
 
 @app.post('/public/interpret')

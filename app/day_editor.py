@@ -14,9 +14,9 @@ from app.calendar_dynamic import _event_line
 
 
 CSS = '''
-.day-card{border:1px solid #cbd5e1;border-top:2px solid #203555;border-radius:8px;margin:18px 0;overflow:hidden}.day-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#edf1f7;padding:6px 12px;border-bottom:1px solid #cbd5e1}.day-heading h3{margin:0;font-size:15px;font-weight:400;color:#203555}.day-heading .btn{padding:5px 10px;font-size:14px;line-height:1.3;margin:0;width:auto}.day-preview{line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px}.day-preview,.day-preview *,.day-form .editor-visual,.day-form .editor-visual *{font-weight:400!important}.day-preview p,.day-preview div{margin:0}.day-preview a{color:inherit}
+.day-card{border:1px solid var(--line);border-top:2px solid var(--school-green);border-radius:8px;margin:18px 0;overflow:hidden}.day-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--soft);padding:6px 12px;border-bottom:1px solid var(--line)}.day-heading h3{margin:0;font-size:15px;font-weight:400;color:var(--school-navy)}.day-heading .btn,.day-heading button{padding:5px 10px;font-size:14px;line-height:1.3;margin:0;width:auto;white-space:nowrap}.day-heading-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}.day-heading-actions form{margin:0}.day-preview{line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px}.day-preview,.day-preview *,.day-form .editor-visual,.day-form .editor-visual *{font-weight:400!important}.day-preview p,.day-preview div{margin:0}.day-preview a{color:inherit}
 .day-dialog{border:1px solid #e5dfd8;border-radius:16px;padding:0;width:min(920px,calc(100% - 24px));max-height:90vh;max-height:90dvh;color:#2f2926}.day-dialog::backdrop{background:rgba(20,32,49,.55)}.day-dialog .day-form{padding:22px}.day-form .editor-visual,.day-form textarea{min-height:300px;max-height:50vh;overflow:auto;font-size:16px}.day-actions{display:flex;flex-wrap:wrap;gap:10px;position:sticky;bottom:0;background:white;padding:12px 0;margin:0}.day-error{background:#fff5d9;border:1px solid #efd28a;border-radius:8px;padding:12px}.day-form h2{margin:0 0 10px}label,.muted{font-size:14px}
-@media(max-width:600px){.day-heading{gap:8px;padding:6px 10px}.day-heading .btn{width:auto}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:230px}}
+@media(max-width:600px){.day-heading{gap:8px;padding:6px 10px;flex-wrap:wrap}.day-heading h3{font-size:14px}.day-heading .btn,.day-heading button{font-size:13px;padding:5px 7px;width:auto}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:230px}}
 '''
 
 SCRIPT = '''<script id="whole-day-windows">
@@ -75,6 +75,9 @@ def register_day_editor(s):
         rich = '<br/>'.join(ordered_fragments(fragments))
         return state, token, rich
 
+    # Use the same day version for edits and deletion from the overview.
+    s.day_records = records
+
     def label(date):
         day = s.datetime.fromisoformat(date)
         weekdays = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag']
@@ -99,7 +102,7 @@ def register_day_editor(s):
     s.public._remove_route('/kalender-wijzigen', 'GET')
 
     @s.app.get('/kalender-wijzigen')
-    def day_list(q: str = '', date: str = '', p: int = 1, saved: int = 0):
+    def day_list(q: str = '', date: str = '', p: int = 1, saved: int = 0, deleted: int = 0):
         def normalized(value):
             return ''.join(c for c in unicodedata.normalize('NFD', value.lower())
                            if not unicodedata.combining(c)).replace('afwezigheid', 'afwezig')
@@ -123,6 +126,8 @@ def register_day_editor(s):
         p = min(max(1, p), max(1, (len(days) + 19) // 20))
         start = (p - 1) * 20
         body = '<p class="ok" role="status">Wijziging opgeslagen.</p>' if saved else ''
+        if deleted:
+            body += '<p class="ok" role="status">Dag gewist.</p>'
         body += (f'<div class="card"><h2>Kalender wijzigen</h2><form>'
                  f'<label>Zoeken op tekst of datum</label><input name="q" value="{s.esc(q, quote=True)}">'
                  f'<label>Datum (optioneel)</label><input type="date" name="date" value="{s.esc(date, quote=True)}">'
@@ -131,8 +136,14 @@ def register_day_editor(s):
         dialogs = []
         for ds, token, rich, count in days[start:start + 20]:
             ident = 'day-window-' + ds
+            confirmation = 'Dag ' + label(ds) + ' wissen? Alle activiteiten, vervangingen en agenda’s van deze dag worden verwijderd.'
+            confirm_script = s.esc('return confirm(' + json.dumps(confirmation, ensure_ascii=False) + ')', quote=True)
             body += (f'<section class="day-card"><div class="day-heading"><h3>{label(ds)}</h3>'
-                     f'<a class="btn" href="/kalender-dag/{ds}" data-edit-day="{ident}">Bewerken</a></div>'
+                     '<div class="day-heading-actions">'
+                     f'<a class="btn" href="/kalender-dag/{ds}" data-edit-day="{ident}">Bewerken</a>'
+                     f'<form method="post" action="/kalender-dag-verwijderen" onsubmit="{confirm_script}">'
+                     f'<input type="hidden" name="date" value="{ds}"><input type="hidden" name="version" value="{token}">'
+                     f'<button class="danger" aria-label="Dag {label(ds)} wissen">Dag wissen</button></form></div></div>'
                      f'<div class="day-preview">{rich}</div></section>')
             dialogs.append(f'<dialog class="day-dialog" id="{ident}" aria-labelledby="day-title-{ds}">'
                            + form(ds, token, rich, modal=True) + '</dialog>')
@@ -142,10 +153,7 @@ def register_day_editor(s):
             if number > 0 and (number < p or start + 20 < len(days)):
                 url = s.esc(urlencode({'q': q, 'date': date, 'p': number}), quote=True)
                 body += f'<p><a href="/kalender-wijzigen?{url}">{text}</a></p>'
-        body += ('</div><details class="card"><summary>Een volledige dag verwijderen</summary>'
-                 '<p>Voorbije dagen verdwijnen automatisch na middernacht, volgens Belgische tijd.</p>'
-                 '<form method="post" action="/kalender-dag-verwijderen" onsubmit="return confirm(\'Deze hele dag met ALLE activiteiten en vervangingen verwijderen?\')">'
-                 '<label>Dag</label><input type="date" name="date" required><p><button class="danger">Hele dag verwijderen</button></p></form></details>')
+        body += '</div>'
         refresh = '''<script id="editor-day-refresh">
 (() => {
  const renderedDay = %s;
@@ -177,7 +185,7 @@ def register_day_editor(s):
         rich = s.without_bold(s.clean_html(body_html))
         if len(body_html) > 100000 or len(rich) > 100000 or not s.plain(rich):
             return HTMLResponse(document('Dag bewerken', '<div class="card">' + form(
-                date, version, rich[:100000], error='Vul kalendertekst in (maximaal 100.000 tekens). Gebruik “Hele dag verwijderen” om alles te wissen.') + '</div>'), status_code=400)
+                date, version, rich[:100000], error='Vul kalendertekst in (maximaal 100.000 tekens). Gebruik “Dag wissen” in het overzicht om alles te wissen.') + '</div>'), status_code=400)
         con = s.core.db()
         try:
             con.execute('BEGIN IMMEDIATE')

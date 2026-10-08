@@ -45,6 +45,16 @@ with TestClient(app) as client:
     assert not listing.select('a[href^="/kalender-regel/"]')
     assert len(listing.select('dialog textarea')) == 2
     assert listing.select_one('[data-edit-day]').get_text() == 'Bewerken'
+    delete_forms = listing.select('.day-heading-actions form')
+    assert len(delete_forms) == 2
+    assert all(f['action'] == '/kalender-dag-verwijderen' and f['method'] == 'post' for f in delete_forms)
+    assert all('confirm(' in f['onsubmit'] and 'agenda’s' in f['onsubmit'] for f in delete_forms)
+    assert all(f.select_one('button').get_text() == 'Dag wissen' for f in delete_forms)
+    assert delete_forms[0].select_one('input[name=date]')['value'] == day
+    assert delete_forms[0].select_one('input[name=version]')['value'] == edit(client)['version']
+    for url in ('/', '/kalender-wijzigen', '/kalender-links', '/kalender-dag/' + day, '/smartschool-calendar', '/login'):
+        page = BeautifulSoup(client.get(url).text, 'html.parser')
+        assert page.select_one('style#school-theme'), url
     assert not listing.select('.day-preview b,.day-preview strong')
     assert not any('font-weight:' in tag.get('style', '') for tag in listing.select('.day-preview [style]'))
     calendar = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
@@ -88,6 +98,9 @@ with TestClient(app) as client:
     stale = edit(client)
     client.post('/kalender-toevoegen', data={'date': day, 'lines': 'Nieuw van collega'})
     before_conflict = rows_all()
+    stale_delete = client.post('/kalender-dag-verwijderen', data={'date': day, 'version': stale['version']})
+    assert stale_delete.status_code == 409 and 'Dag opnieuw bekijken' in stale_delete.text
+    assert rows_all() == before_conflict
     stale['body_html'] += '<br>Mijn onopgeslagen tekst'
     conflict = client.post('/kalender-dag/' + day, data=stale)
     assert conflict.status_code == 409 and 'Mijn onopgeslagen tekst' in conflict.text
@@ -108,10 +121,25 @@ with TestClient(app) as client:
     assert audit['before']['events'][0]['title'] == 'Bibliotheek'
     con.close()
     # Deletion in another window also invalidates an open day editor.
+    client.post('/public/create', data={'date': day, 'title': 'Zwembad', 'start_time': '11:00'})
     stale = edit(client)
-    client.post('/kalender-dag-verwijderen', data={'date': day})
+    untouched = [r for r in rows_all() if r['date'] == other]
+    delete_data = {'date': day, 'version': stale['version']}
+    response = client.post('/kalender-dag-verwijderen', data=delete_data, follow_redirects=False)
+    assert response.status_code == 303 and response.headers['location'] == '/kalender-wijzigen?deleted=1'
+    assert 'Dag gewist.' in client.get(response.headers['location']).text
+    assert client.post('/kalender-dag-verwijderen', data=delete_data).status_code == 409
     assert client.post('/kalender-dag/' + day, data=stale).status_code == 409
     assert not [r for r in rows_all() if r['date'] == day]
+    assert [r for r in rows_all() if r['date'] == other] == untouched
+    calendar = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
+    assert not calendar.select('[data-calendar-date="' + day + '"]')
+    assert len(calendar.select('[data-calendar-date="' + other + '"]')) == 2
+    assert not BeautifulSoup(client.get('/kalender-wijzigen').text, 'html.parser').select('input[name=date][value="' + day + '"]')
+    con = core.db()
+    deleted = json.loads(con.execute("SELECT payload FROM audit_log WHERE action='calendar.day_deleted' ORDER BY id DESC LIMIT 1").fetchone()[0])
+    assert deleted['basis'] and deleted['events'][0]['title'] == 'Zwembad'
+    con.close()
     assert client.get('/kalender-dag/2026-02-31').status_code == 400
 
 print('TCH_DAY_EDITOR_SMOKE_TEST=PASS')
