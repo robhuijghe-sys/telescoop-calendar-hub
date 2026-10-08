@@ -52,12 +52,15 @@ with TestClient(app) as client:
     assert all(f.select_one('button').get_text() == 'Dag wissen' for f in delete_forms)
     assert delete_forms[0].select_one('input[name=date]')['value'] == day
     assert delete_forms[0].select_one('input[name=version]')['value'] == edit(client)['version']
-    for url in ('/', '/kalender-wijzigen', '/kalender-links', '/kalender-dag/' + day, '/smartschool-calendar', '/login'):
+    for url in ('/', '/kalender-wijzigen', '/kalender-links', '/kalender-dag/' + day, '/login'):
         page = BeautifulSoup(client.get(url).text, 'html.parser')
         assert page.select_one('style#school-theme'), url
     assert not listing.select('.day-preview b,.day-preview strong')
     assert not any('font-weight:' in tag.get('style', '') for tag in listing.select('.day-preview [style]'))
     calendar = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
+    assert not calendar.select_one('style#school-theme')
+    assert 'background:#fff5eb' in calendar.select_one('style').get_text()
+    assert 'background:linear-gradient(135deg,' in calendar.select_one('.month-head')['style']
     assert not calendar.select('b,strong')
     assert not any('font-weight:' in tag.get('style', '') for tag in calendar.select('[style]'))
     assert '.wrap,.wrap *{font-weight:400!important}' in str(calendar)

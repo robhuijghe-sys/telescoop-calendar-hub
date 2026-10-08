@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261008-school-theme-delete'
+BUILD = 'railway-editor-20261008-original-calendar-colors'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -308,7 +308,6 @@ def calendar(request: Request):
             con.close()
             doc = snapshot.render_snapshot_calendar(hide_past=True, hidden_dates=hidden).replace('http-equiv="refresh" content="30"', f'http-equiv="refresh" content="{REFRESH_SECONDS}"')
             doc = without_bold(doc).replace('</style>', FONT_CSS + '.wrap,.wrap *{font-weight:400!important}' + '</style>', 1)
-            doc = themed_document(doc)
             doc = doc.replace('</body>', MIDNIGHT_SCRIPT + '</body>')
             cache.update(key=key, doc=doc, etag='"' + hashlib.sha256(doc.encode()).hexdigest() + '"')
         doc, etag = cache['doc'], cache['etag']
