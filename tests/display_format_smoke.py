@@ -53,6 +53,32 @@ with TestClient(app) as client:
     con=core.db()
     assert all(not BeautifulSoup(r[0], 'html.parser').find(['p','div']) for r in con.execute('SELECT body_html FROM editor_lines WHERE deleted=0'))
     con.close()
+    # Cleanup also enforces the latest calendar-wide content/color/order rules.
+    assert client.post('/kalender-toevoegen',data={'date':day,'lines_html':
+        '<p>instapdag</p><p>instappers:</p><p>Ida Smet, Ines Delgrange Pierre</p>'
+        '<p><span style="color:#8e44ad">15u30: Zorgoverleg</span></p>'
+        '<p><span style="color:#8e44ad">16u00: Teamvergadering</span></p>'
+        '<p><span style="color:#8e44ad">Vakgroep WO: 15u00</span></p>'
+        '<p>3 weken LIST</p><p>Eline afwezig</p>'},follow_redirects=False).status_code==303
+    rendered=BeautifulSoup(client.get('/smartschool-calendar').text,'html.parser')
+    from app.rich_editor import fragment_text
+    for selector in ('.desktop-calendar tr[data-calendar-date="'+day+'"] .event-cell',
+                     '.mobile-calendar .mobile-day[data-calendar-date="'+day+'"] .mobile-events'):
+        cell=rendered.select_one(selector)
+        label=fragment_text(str(cell))
+        assert label.startswith('Eline afwezig'),label
+        assert 'instapdag' not in label.casefold()
+        assert 'Ida Smet, Ines Delgrange Pierre' in label
+        assert cell.select_one('.overleg-group') and 'Zorgoverleg' in cell.select_one('.overleg-group').get_text()
+        assert len(cell.select('.meeting-group'))==2
+        assert 'Stage' in cell.find_all(recursive=False)[-1].get_text()
+        assert not cell.find('p') and not __import__('re').search(r'\n\s*\n',label)
+    con=core.db()
+    zorg=con.execute("SELECT body_html FROM editor_lines WHERE title LIKE '%Zorgoverleg%' AND deleted=0").fetchone()[0]
+    team=con.execute("SELECT body_html FROM editor_lines WHERE title LIKE '%Teamvergadering%' AND deleted=0").fetchone()[0]
+    assert '#000000' in zorg and '#8e44ad' not in zorg
+    assert '#D31996' in team and '#8e44ad' not in team
+    con.close()
     before=rows_all()
     result=client.post('/kalender-opmaak-controleren').json()
     assert result['checked']==len(before) and result['changed']==0 and result['timezone']=='Europe/Brussels'

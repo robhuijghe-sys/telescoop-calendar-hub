@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261009-compact-calendar-lines'
+BUILD = 'railway-editor-20261009-compact-lines-meeting-colors'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -345,7 +345,7 @@ def home(saved: int = 0, added: int = 0):
         ('waarschuwing', 'Afwezigheid', 'Schrijf één afwezigheid per regel. Vervangingen mogen op aparte regels en blijven standaard zwart.', 'Lien afwezig', 'rood'),
         ('secretariaat', 'Taak secretariaat', 'Schrijf één taak per regel. Een klasgroep of uur is niet verplicht.', 'Secretariaat belt ouders zonder afspraak', 'groen'),
         ('stage', 'Stage', 'Schrijf één stage per regel, met de naam en eventueel klasgroep en uren.', 'Stage Imane K0K1 van 8u30 tot 12u40', 'lichtblauw'),
-        ('personeel', 'Personeel / overleg', 'Schrijf één activiteit of overleg per regel, eventueel met het uur.', '15u30: teamvergadering', 'paars'),
+        ('personeel', 'Personeel / overleg', 'Schrijf één activiteit of overleg per regel, eventueel met het uur.', '15u30: teamvergadering', 'roze (#D31996)'),
         ('ouders', 'Ouders / oudercontact', 'Schrijf één ouderactiviteit per regel, eventueel met klasgroep en uur.', '16u00: oudercontact L1', 'groen'),
         ('algemeen', 'Algemeen', 'Schrijf één activiteit per regel, eventueel met klasgroep en uur.', 'Materiaal klaarleggen', 'donkergrijs'),
     ]

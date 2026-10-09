@@ -102,7 +102,7 @@ with TestClient(app) as client:
         ('waarschuwing', 'Lien afwezig', '#D32F2F', 'Lien afwezig'),
         ('secretariaat', 'Ouders bellen zonder afspraak', '#a2c647', 'Ouders bellen zonder afspraak'),
         ('stage', 'Stage Noor van 8u30 tot 12u40', '#5dade2', 'Stage Noor van 8u30 tot 12u40'),
-        ('personeel', '15u30: overleg leesbeleid', '#C614A1', '15u30: overleg leesbeleid'),
+        ('personeel', '15u30: overleg leesbeleid', '#000000', '15u30: overleg leesbeleid'),
         ('ouders', '16u00: infoavond', '#99CA3B', '16u00: infoavond'),
         ('algemeen', 'Materialen klaarleggen', '#2F2926', 'Materialen klaarleggen'),
     ]:

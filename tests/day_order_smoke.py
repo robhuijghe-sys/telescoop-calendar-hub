@@ -15,7 +15,7 @@ assert ordered_fragments(['A','B'])==['A','B']
 print('TCH_DAY_ORDER_SMOKE_TEST=PASS')
 
 rows=['teamvergadering: 15u45 tot 17u00','* actuakring: wat werkt?', 'Stage Fatima van 8u00 tot 12u00','09u: uitstap','Milla afw','10u: Rob vervangt Milla','Zonder uur']
-assert ordered_fragments(rows)==[rows[4],rows[5],rows[3],rows[6],rows[2],rows[0],rows[1]]
+assert ordered_fragments(rows)==[rows[4],rows[5],rows[3],rows[6],rows[0],rows[1],rows[2]]
 assert sorted(ordered_fragments(rows))==sorted(rows)
 print('STAGES_MEETINGS_QC=PASS')
 
@@ -28,7 +28,7 @@ assert group.select_one('.activity-group')
 assert ' '.join(group.get_text(' ',strip=True).split())=='digitale wolven: 3de en 4de lesuur: GR3 + K3 5de en 6de lesuur: L1 + L2'
 assert len(group.select('b'))==2
 assert rows[3] in result and rows[4] in result
-assert result[-3:]==rows[-3:]
+assert result[-3:]==[rows[-2],rows[-1],rows[-3]]
 assert time_key('3de en 4de lesuur: GR3 + K3')==580
 assert is_replacement('Marinela vervangt Milla (GWP GR2)')
 assert not is_replacement('Milla afwezig: GWP GR2')

@@ -8,7 +8,7 @@ MEETING = re.compile(r'\b(?:[\w-]*vergadering(?:en)?|vakgroep(?:en)?|[\w-]*overl
 AGENDA = re.compile(r'^[*•–-]\s*|\bagendapunt(?:en)?\b', re.I)
 SWAP = re.compile(r'\b(?:wissel|leswissel|vervanging(?:en)?)\b', re.I)
 FORMAL_MEETING = re.compile(r'\b(?:vakgroep(?:en)?|[\w-]*vergadering(?:en)?)\b', re.I)
-MEETING_COLOR = '#8e44ad'
+MEETING_COLOR = '#D31996'
 READING_BLOCK = re.compile(
     r'^(?:[23]\s+weken\s+(?:LIST|close\s+reading)|LIST\s+tot\s+einde\s+schooljaar)'
     r'(?:\s*\([^)]*\))?$', re.I)
@@ -20,6 +20,10 @@ def is_meeting(text):
     if not match or ABSENCE.search(text) or AGENDA.match(text):
         return False
     return not (REPLACEMENT.search(text[:match.start()]) or SWAP.search(text[:match.start()]))
+
+
+def is_colored_meeting(text):
+    return is_meeting(text) and bool(FORMAL_MEETING.search(text))
 
 
 def meeting_reference(text):
@@ -136,14 +140,15 @@ def ordered_fragments(fragments, style_meetings=False):
         order.append(a)
         order.extend(sorted(groups[a], key=lambda i: time_key(texts[i])))
     order.extend(sorted(loose, key=lambda i: time_key(texts[i])))
-    order.extend(sorted(rest, key=lambda i: time_key(texts[i])))
-    order.extend(sorted(stages, key=lambda i: time_key(texts[i])))
+    order.extend(sorted(rest, key=lambda i: (fragments[i] not in reading_blocks, time_key(texts[i]))))
     result = [fragments[i] for i in order]
     for meeting in sorted(meetings, key=lambda i: meeting_time_key(texts[i])):
         group = [fragments[i] for i in [meeting] + sorted(meetings[meeting])]
         if style_meetings:
-            result.append('<span class="meeting-group">' + '<br/>'.join(group) + '</span>')
+            kind = 'meeting-group' if is_colored_meeting(texts[meeting]) else 'overleg-group'
+            result.append('<span class="' + kind + '">' + '<br/>'.join(group) + '</span>')
         else:
             result.extend(group)
-    # Pin the period labels first; keep all other activity and meeting ordering.
-    return sorted(result, key=lambda fragment: fragment not in reading_blocks)
+    # Absences lead the day; stages follow every activity and meeting.
+    result.extend(fragments[i] for i in sorted(stages, key=lambda i: time_key(texts[i])))
+    return result

@@ -75,7 +75,7 @@ with TestClient(app) as client:
     r = client.get("/smartschool-calendar", follow_redirects=False)
     assert r.status_code == 200
     assert "Teamvergadering" in r.text
-    assert "#C614A1" in r.text
+    assert "#D31996" in r.text
 
     r = client.get("/?added=1")
     assert r.status_code == 200

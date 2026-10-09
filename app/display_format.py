@@ -24,6 +24,7 @@ def moment_label(value):
 
 
 def normalize_text(value, moment='', location='', outing=False):
+    value = re.sub(r'\binstapdag\b[ :;,-]*', '', value, flags=re.I).strip()
     # Established stage labels retain their name-first notation and extra duties.
     if STAGE.search(value):
         return value
@@ -113,6 +114,27 @@ def normalize_text(value, moment='', location='', outing=False):
     return (moment + ': ' if moment else '') + (class_label + ' - ' if class_label else '') + text
 
 
+def calendar_color(value):
+    from app.day_order import is_meeting, is_colored_meeting, MEETING_COLOR
+    title = fragment_text(value)
+    if STAGE.search(title) or not is_meeting(title):
+        return value
+    color = MEETING_COLOR if is_colored_meeting(title) else '#000000'
+    soup = BeautifulSoup(value, 'html.parser')
+    colored = False
+    for node in soup.find_all(style=True):
+        style = node['style']
+        if re.search(r'(?:^|;)\s*color\s*:', style, re.I):
+            node['style'] = re.sub(r'(^|;)\s*color\s*:[^;]*', lambda m:m[1] + 'color:' + color, style, flags=re.I)
+            colored = True
+    if not colored:
+        wrapper = soup.new_tag('span', style='color:' + color)
+        for node in list(soup.contents):
+            wrapper.append(node)
+        soup.append(wrapper)
+    return str(soup)
+
+
 def normalize_html(value, activity=''):
     # Keep each line's colors and links. Splitting nested markup via text nodes
     # would lose the original position of links, so reshape each inline fragment.
@@ -134,10 +156,12 @@ def normalize_html(value, activity=''):
         if re.fullmatch(r'digitale wolven\s*:', original, re.I):
             activity = 'Digitale wolven'
         normalized = normalize_text(original)
+        if not normalized.strip():
+            continue
         head = MOMENT.match(normalized)
         if activity and head and GROUP.fullmatch(normalized[head.end():].lstrip(': ')):
             normalized += ' - ' + activity
-        result.append(reshape_html(fragment, normalized) if normalized != original else fragment)
+        result.append(calendar_color(reshape_html(fragment, normalized) if normalized != original else fragment))
     return '<br/>'.join(lines('<br/>'.join(result)))
 
 
@@ -178,7 +202,7 @@ def check_calendar(s, reason='manual'):
             title = fragment_text(rich)
             if rich != row['body_html'] or title != row['title']:
                 changed.append({'key': 'basis:' + str(row['id']), 'before': dict(row), 'after': title})
-                con.execute('UPDATE editor_lines SET body_html=?,title=?,version=version+1 WHERE id=?', (rich,title,row['id']))
+                con.execute('UPDATE editor_lines SET body_html=?,title=?,deleted=?,version=version+1 WHERE id=?', (rich,title,int(not title.strip()),row['id']))
         for row in con.execute('SELECT * FROM events WHERE visible_in_embed=1').fetchall():
             checked += 1
             stage = row['category'] == 'stage' or STAGE.search(row['title'])
@@ -190,7 +214,7 @@ def check_calendar(s, reason='manual'):
             desc_rich = normalize_html(row['description_html']) if row['description_html'] else ''
             if title != row['title'] or description != row['description'] or rich != row['title_html'] or desc_rich != row['description_html']:
                 changed.append({'key': 'event:' + str(row['id']), 'before': dict(row), 'after': title})
-                con.execute('UPDATE events SET title=?,description=?,title_html=?,description_html=?,updated_at=? WHERE id=?', (title,description,rich,desc_rich,s.core.now_iso(),row['id']))
+                con.execute('UPDATE events SET title=?,description=?,title_html=?,description_html=?,updated_at=?,visible_in_embed=? WHERE id=?', (title,description,rich,desc_rich,s.core.now_iso(),int(bool(title.strip() or description.strip())),row['id']))
         report = {'checked':checked,'changed':len(changed),'stages_skipped':stages_skipped,'timezone':'Europe/Brussels','reason':reason,'checked_at':s.core.now_iso()}
         if changed:
             s.audit(con, 'calendar.format_normalized', {'report':report,'changes':changed})

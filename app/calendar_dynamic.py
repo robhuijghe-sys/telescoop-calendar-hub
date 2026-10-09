@@ -11,7 +11,7 @@ from fastapi import Depends, Form, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
-from app.day_order import is_replacement
+from app.day_order import is_replacement, is_meeting, is_colored_meeting, MEETING_COLOR
 from app.stage_format import STAGE_COLOR, is_stage, stage_label
 from app.rich_editor import fragment_text, reshape_html, inline_html
 import app.main as core
@@ -20,7 +20,7 @@ from app.entry import app
 
 CATEGORY_COLORS = {
     "ouders": ("#99CA3B", "Ouders"),
-    "personeel": ("#C614A1", "Personeel"),
+    "personeel": ("#000000", "Personeel"),
     "stage": (STAGE_COLOR, "Stage"),
     "secretariaat": ("#a2c647", "Taak secretariaat"),
     "uitstap": ("#F09009", "Uitstap / activiteit"),
@@ -109,6 +109,10 @@ def category_for_row(row) -> str:
 
 
 def color_for_row(row) -> str:
+    if is_colored_meeting(row['title']):
+        return MEETING_COLOR
+    if is_meeting(row['title']):
+        return '#000000'
     return CATEGORY_COLORS[category_for_row(row)][0]
 
 
@@ -322,6 +326,8 @@ def _event_line(row) -> str:
     if 'description_html' in row.keys() and row['description_html'] and fragment_text(row['description_html']) == row['description']:
         desc = '<br>' + inline_html(row['description_html'])
         custom = ' data-custom-format="true"'
+    if not text.strip():
+        return re.sub(r'^<br\s*/?>', '', desc, flags=re.I)
     return f'<span{custom} style="color:{color};font-weight:{"700" if color != CATEGORY_COLORS["algemeen"][0] else "400"}">{body}</span>{desc}'
 
 
