@@ -44,6 +44,7 @@ def inline_html(value):
 def reshape_html(value, text):
     """Keep inline colors/links when structured notation or hours are normalized."""
     soup = BeautifulSoup(value, 'html.parser')
+    links = [(tag, tag.get_text(), dict(tag.attrs)) for tag in soup.find_all('a') if tag.get_text()]
     nodes = list(soup.find_all(string=True))
     original = ''.join(str(node) for node in nodes)
     if not nodes:
@@ -64,6 +65,21 @@ def reshape_html(value, text):
             pieces[index] += text[c:d]
     for node, piece in zip(nodes, pieces):
         node.replace_with(NavigableString(piece))
+    for tag, label, attrs in links:
+        if tag.get_text() == label or label not in text:
+            continue
+        tag.unwrap()
+        for node in list(soup.find_all(string=True)):
+            if node.find_parent('a') or label not in str(node):
+                continue
+            before, after = str(node).split(label, 1)
+            link = soup.new_tag('a', attrs=attrs)
+            link.string = label
+            node.insert_before(NavigableString(before))
+            node.insert_before(link)
+            node.insert_before(NavigableString(after))
+            node.extract()
+            break
     return str(soup)
 
 

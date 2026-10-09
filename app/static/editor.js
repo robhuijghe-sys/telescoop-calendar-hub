@@ -23,6 +23,14 @@
         } else el.replaceWith(...el.childNodes);
       }
     });
+    // Calendar entries use line breaks, never paragraph blocks.
+    doc.body.querySelectorAll('p,div').forEach(el => {
+      if (el.previousSibling && el.previousSibling.nodeName !== 'BR') el.before(doc.createElement('br'));
+      if (el.nextSibling && el.nextSibling.nodeName !== 'BR') el.after(doc.createElement('br'));
+      const span = doc.createElement('span');
+      span.style.cssText = el.style.cssText;
+      span.append(...el.childNodes); el.replaceWith(span);
+    });
     return doc.body.innerHTML;
   }
   document.querySelectorAll('.html-editor').forEach(root => {
@@ -89,6 +97,12 @@
       if (action === 'bold') document.execCommand('bold', false);
       if (action === 'clear') document.execCommand('removeFormat', false);
       remember(); source.value = safeHTML(visual.innerHTML);
+    });
+    visual.addEventListener('beforeinput', event => {
+      if (event.inputType === 'insertParagraph') {
+        event.preventDefault();
+        document.execCommand('insertLineBreak', false);
+      }
     });
     visual.addEventListener('paste', event => {
       event.preventDefault();

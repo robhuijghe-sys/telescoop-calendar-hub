@@ -54,8 +54,8 @@ with TestClient(app) as client:
     row2 = stored("SELECT * FROM editor_lines WHERE title='9u30: L2 - bibliotheek'")
     assert '#186a3b' in row2['body_html']
     count = len(rows_all())
-    bad = client.post('/kalender-toevoegen', data={'date':'2026-10-02', 'structured':'1', 'lines_html':'<p>VM: L3: geldig</p><p>ongeldig</p>'})
-    assert bad.status_code == 200 and len(rows_all()) == count + 2
+    bad = client.post('/kalender-toevoegen', data={'date':'2026-10-02', 'structured':'1', 'lines_html':'<p>VM: L3: geldig</p><p>ongeldig</p>'}, follow_redirects=False)
+    assert bad.status_code == 303 and len(rows_all()) == count + 2
     count += 2
     response = client.post('/kalender-toevoegen', data={'date':'2026-10-02', 'structured':'1', 'lines_html':'VM: L3: leesles\nNM: L3: sport'}, follow_redirects=False)
     assert response.status_code == 303 and len(rows_all()) == count + 2

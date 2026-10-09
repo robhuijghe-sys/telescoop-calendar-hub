@@ -38,7 +38,7 @@ with TestClient(app) as client:
     expected = 'Stage Imane K0K1 van 8u30 tot 12u40'
     for selector in ('.desktop-calendar', '.mobile-calendar'):
         view = soup.select_one(selector)
-        label = view.find('span', string=expected)
+        label = view.find('span', string=expected, style='color:#5dade2')
         assert label and label['style'] == 'color:#5dade2'
         assert '15u30 - 17u00: L1 - Oudercontact' in view.get_text()
         assert view.get_text().count(expected) == 1
@@ -62,7 +62,7 @@ with TestClient(app) as client:
     assert client.post('/kalender-toevoegen', follow_redirects=False, data={
         'date': day, 'lines': 'Stage Fatima Zahra van 13u20 tot 17u00'}).status_code == 303
     updated = client.get('/smartschool-calendar')
-    label = BeautifulSoup(updated.text, 'html.parser').find('span', string='Stage Fatima Zahra van 13u20 tot 17u00')
+    label = BeautifulSoup(updated.text, 'html.parser').find('span', string='Stage Fatima Zahra van 13u20 tot 17u00', style='color:#5dade2')
     assert label and label['style'] == 'color:#5dade2'
     assert updated.headers['etag'] != response.headers['etag']
 

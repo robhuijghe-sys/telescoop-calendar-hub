@@ -47,7 +47,7 @@ def group_workshops(fragments):
         if re.fullmatch(r'\s*digitale wolven\s*:?', str(node), re.I):
             node.replace_with(str(node).rstrip().rstrip(':') + ':')
             break
-    group = '<div class="activity-group">' + str(heading) + '\n' + '\n'.join(fragments[i] for i in sorted(slots, key=lambda i: time_key(texts[i]))) + '</div>'
+    group = '<span class="activity-group">' + str(heading) + '<br/>' + '<br/>'.join(fragments[i] for i in sorted(slots, key=lambda i: time_key(texts[i]))) + '</span>'
     return [group if i == head else f for i, f in enumerate(fragments) if i not in slots]
 
 
@@ -142,7 +142,7 @@ def ordered_fragments(fragments, style_meetings=False):
     for meeting in sorted(meetings, key=lambda i: meeting_time_key(texts[i])):
         group = [fragments[i] for i in [meeting] + sorted(meetings[meeting])]
         if style_meetings:
-            result.append('<div class="meeting-group">' + ''.join(group) + '</div>')
+            result.append('<span class="meeting-group">' + '<br/>'.join(group) + '</span>')
         else:
             result.extend(group)
     # Pin the period labels first; keep all other activity and meeting ordering.

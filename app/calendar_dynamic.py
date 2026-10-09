@@ -300,22 +300,17 @@ def _top_links_html() -> str:
 def _event_line(row) -> str:
     local_start = datetime.fromisoformat(row["start_at"]).astimezone(core.TZ)
     local_end = datetime.fromisoformat(row["end_at"]).astimezone(core.TZ)
-    prefix = ""
-    if not row["all_day"]:
-        if local_start.strftime("%H:%M") == local_end.strftime("%H:%M"):
-            prefix = local_start.strftime("%H.%M") + "u: "
-        else:
-            prefix = local_start.strftime("%H.%M") + "-" + local_end.strftime("%H.%M") + "u: "
-    text = (stage_label(row["title"], local_start, local_end, row["all_day"])
-            if category_for_row(row) == "stage" else prefix + row["title"])
-    if row["location"]:
-        text += " — " + row["location"]
-    if category_for_row(row) != 'stage':
-        from app.display_format import normalize_text
-        moment = '' if row['all_day'] else f'{local_start.hour}u{local_start.minute:02d}'
-        if moment and local_start != local_end:
-            moment += f' - {local_end.hour}u{local_end.minute:02d}'
-        text = normalize_text(row['title'], moment=moment, location=row['location'])
+    from app.display_format import normalize_text
+    moment = '' if row['all_day'] else f'{local_start.hour}u{local_start.minute:02d}'
+    if moment and local_start != local_end:
+        moment += f' - {local_end.hour}u{local_end.minute:02d}'
+    title = row['title']
+    if category_for_row(row) == 'stage':
+        text = stage_label(title, local_start, local_end, row['all_day'])
+        if row['location']:
+            text += ' — ' + row['location']
+    else:
+        text = normalize_text(title, moment=moment, location=row['location'])
     color = color_for_row(row)
     desc = ""
     if row["description"]:

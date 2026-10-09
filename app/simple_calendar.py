@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261009-uniform-calendar-format'
+BUILD = 'railway-editor-20261009-compact-calendar-lines'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -272,7 +272,8 @@ async def editor_headers(request: Request, call_next):
             and os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1'):
         from app.display_format import check_calendar
         import sys
-        check_calendar(sys.modules[__name__], 'saved')
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(check_calendar, sys.modules[__name__], 'saved')
     if request.method == 'POST' and request.url.path in ('/public/create', '/kalender-toevoegen', '/kalender-uitstap') and response.status_code == 303:
         response.headers['Location'] = '/opgeslagen'
     if request.url.path.startswith('/calendar-fonts/'):
@@ -339,7 +340,7 @@ def calendar(request: Request):
 def home(saved: int = 0, added: int = 0):
     message = '<p class="ok">Opgeslagen. De kalender toont je wijziging bij de volgende opening; openstaande kalenders verversen binnen twee uur.</p>' if saved or added else ''
     types = [
-        ('auto', 'Automatisch per regel', 'Typ elke activiteit op een aparte regel. Uren en klasgroepen krijgen automatisch de vaste opmaak.', 'VM: K3: uitstap naar plantentuin', ''),
+        ('auto', 'Automatisch per regel', 'Gebruik per regel: uur: klas - activiteit (plaats). Ook vrije tekst wordt automatisch opgemaakt.', '9u30: K3 - Uitstap (plantentuin Meise)', ''),
         ('uitstap', 'Uitstap', 'Gebruik per uitstap: uur of dagdeel: klasgroep - uitstap (plaats).', 'VM: K3: plantentuin Meise', 'oranje'),
         ('waarschuwing', 'Afwezigheid', 'Schrijf één afwezigheid per regel. Vervangingen mogen op aparte regels en blijven standaard zwart.', 'Lien afwezig', 'rood'),
         ('secretariaat', 'Taak secretariaat', 'Schrijf één taak per regel. Een klasgroep of uur is niet verplicht.', 'Secretariaat belt ouders zonder afspraak', 'groen'),
@@ -351,7 +352,7 @@ def home(saved: int = 0, added: int = 0):
     options = ''.join(f'<option value="{key}" data-color="{CATEGORY_COLORS[key][0] if key != "auto" else ""}" data-color-name="{color_name}" data-help="{esc(help_text, quote=True)}" data-placeholder="{esc(placeholder, quote=True)}">{label}</option>' for key, label, help_text, placeholder, color_name in types)
     body = '''<details class="card" open><summary>Toevoegen aan kalender</summary><p>Kies één datum en een type. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label for="activity-date">Datum</label><input id="activity-date" type="date" name="date" required>'''
     body += f'<label for="activity-type">Type</label><select id="activity-type" name="category" data-calendar-type>{options}</select><p class="type-color" aria-live="polite"><span class="type-color-dot" aria-hidden="true"></span><span class="type-color-text">De kleur wordt automatisch per regel gekozen.</span></p><p id="activity-type-help">{types[0][2]}</p>'
-    body += editor('lines_html', label='Activiteiten en vervangingen', required=True, placeholder='VM: K3: uitstap naar plantentuin')
+    body += editor('lines_html', label='Activiteiten en vervangingen', required=True, placeholder='9u30: K3 - Uitstap (plantentuin Meise)')
     body += '<p><button>Toevoegen aan kalender</button></p></form></details>'
     return HTMLResponse(page('Activiteiten toevoegen', message + body))
 
@@ -392,8 +393,23 @@ def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Fo
         raise HTTPException(400, 'Zet elke activiteit op een aparte regel met Enter of <br>.')
     if not rows or len(rows) > 100 or any(len(line) > 1000 for line in rows):
         raise HTTPException(400, 'Gebruik 1 tot 100 regels, met maximaal 1000 tekens per regel.')
-    from app.display_format import normalize_text
-    rows = [normalize_text(bulk_outing(line), outing=True) if category == 'uitstap' else normalize_text(line) for line in rows]
+    if structured == '1' and category == 'uitstap' and os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') != '1':
+        normalized = []
+        for number, line in enumerate(rows, 1):
+            parts = re.split(r':\s+|\s+-\s+|,\s*', line, maxsplit=2)
+            if len(parts) != 3 or not all(p.strip() for p in parts):
+                raise HTTPException(400, f'Regel {number}: gebruik dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld 9u30: K3 - Uitstap (plantentuin Meise). Er is niets opgeslagen.')
+            moment, group, activity = [p.strip() for p in parts]
+            if not re.fullmatch(r'(?:VM|NM|voormiddag|namiddag|hele dag|\d{1,2}(?:[u:.h]\d{0,2})?(?:\s*(?:-|tot)\s*\d{1,2}(?:[u:.h]\d{0,2})?)?|\d+(?:ste|de) (?:les)?uur)', moment, re.IGNORECASE):
+                raise HTTPException(400, f'Regel {number}: begin met VM, NM, hele dag of een uur, bijvoorbeeld 09:30. Er is niets opgeslagen.')
+            moment = {'voormiddag': 'VM', 'namiddag': 'NM', 'vm': 'VM', 'nm': 'NM'}.get(moment.lower(), moment)
+            normalized.append(f'{moment}: {group.upper()}: {activity}')
+        rows = normalized
+    if os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1':
+        from app.display_format import normalize_text
+        rows = [normalize_text(bulk_outing(line), outing=True) if category == 'uitstap' else normalize_text(line) for line in rows]
+    else:
+        rows = [bulk_outing(line) if infer_category(line, category) == 'uitstap' else line for line in rows]
     con = core.db()
     try:
         con.execute('BEGIN IMMEDIATE')

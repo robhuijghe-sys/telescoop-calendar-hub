@@ -91,7 +91,7 @@ with TestClient(app) as client:
     assert '<strong>' in split_lines('<span>Text <strong>bold</strong></span><br>next')[0]
 
     before_count = len(rows_all())
-    assert 'placeholder="VM: K3: uitstap naar plantentuin"' in client.get('/').text
+    assert 'placeholder="9u30: K3 - Uitstap (plantentuin Meise)"' in client.get('/').text
     assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'vm - k3 - uitstap naar plantentuin\n9u30: L2 - bibliotheek'}).status_code == 303
     assert len(rows_all()) == before_count + 2
     assert any(r['title'] == 'VM: K3 - Uitstap (plantentuin)' for r in rows_all())
