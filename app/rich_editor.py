@@ -38,6 +38,39 @@ def inline_html(value):
         block.insert_after(soup.new_tag('br'))
     while soup.contents and getattr(soup.contents[-1], 'name', None) == 'br':
         soup.contents[-1].extract()
+    return compact_lines(str(soup))
+
+
+def compact_lines(value):
+    """One visible break per nonempty line, retaining inline styles and links."""
+    value = re.sub(r'<br\s*/?>', '<br/>', value, flags=re.I)
+    soup = BeautifulSoup(value, 'html.parser')
+    for block in list(soup.find_all(('p', 'div'))):
+        block.insert_before(soup.new_tag('br'))
+        block.insert_after(soup.new_tag('br'))
+        block.name = 'span'
+    for node in list(soup.find_all(string=True)):
+        if '\n' not in node and '\r' not in node:
+            continue
+        for i, part in enumerate(re.split(r'\r\n|\r|\n', str(node))):
+            if i:
+                node.insert_before(soup.new_tag('br'))
+            if part:
+                node.insert_before(NavigableString(part))
+        node.extract()
+    pending, has_text = False, False
+    for node in list(soup.descendants):
+        if getattr(node, 'name', None) == 'br':
+            pending = True
+            node.extract()
+        elif isinstance(node, NavigableString):
+            if not str(node).strip():
+                if pending or not has_text:
+                    node.extract()
+                continue
+            if pending and has_text:
+                node.insert_before(soup.new_tag('br'))
+            pending, has_text = False, True
     return str(soup)
 
 

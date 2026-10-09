@@ -15,7 +15,20 @@ from fastapi.testclient import TestClient
 from bs4 import BeautifulSoup
 from app.simple_calendar import app, rows_all
 from app.display_format import normalize_text
+from app.rich_editor import compact_lines, fragment_text
 import app.main as core
+
+# Literal newlines and HTML breaks can coexist, including across styled spans.
+for rich in ['Vervanging Ananda\n<br/>1ste lesuur: L3 - MUVO',
+             '<span style="color:red">Hanne afwezig\n</span><br/>Vervanging',
+             '<p>Voorleesmoment</p>\n<br/><p>11u45: einde lessen</p>',
+             'Teamvergadering<br/>* actuakring\n<br/>\n<br/>* taalonderwijs']:
+    compact = compact_lines(rich)
+    assert '\n\n' not in fragment_text(compact), compact
+    assert not BeautifulSoup(compact, 'html.parser').find(['p','div'])
+    assert compact_lines(compact) == compact
+    assert fragment_text(compact).splitlines() == [x for x in fragment_text(rich).splitlines() if x.strip()]
+
 
 with TestClient(app) as client:
     # Startup migrates existing free-text rows including stages without guessing their hours.

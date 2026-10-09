@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261009-compact-lines-meeting-colors'
+BUILD = 'railway-editor-20261009-no-visible-blank-lines'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -126,7 +126,11 @@ def split_lines(value):
 
     def walk(node, parents):
         if isinstance(node, NavigableString):
-            current.append(''.join(p[0] for p in parents) + esc(str(node)) + ''.join(p[1] for p in reversed(parents)))
+            for i, part in enumerate(re.split(r'\r\n|\r|\n', str(node))):
+                if i:
+                    flush()
+                if part:
+                    current.append(''.join(p[0] for p in parents) + esc(part) + ''.join(p[1] for p in reversed(parents)))
         elif isinstance(node, Tag):
             if node.name == 'br':
                 flush()

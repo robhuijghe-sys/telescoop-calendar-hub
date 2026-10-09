@@ -11,6 +11,7 @@ from pathlib import Path
 import app.main as core
 from app.day_order import ordered_fragments, is_replacement, MEETING_COLOR
 from bs4 import BeautifulSoup
+from app.rich_editor import compact_lines
 from app.calendar_dynamic import MONTH_NAMES, MONTH_PALETTES, SEASONS, WEEKDAYS, _event_line, _top_links_html
 
 SNAPSHOT_PATH = Path(os.getenv("CALENDAR_SNAPSHOT_PATH", "/data/calendar_snapshot.json"))
@@ -102,7 +103,7 @@ def render_snapshot_calendar(hide_past=False, hidden_dates=()) -> str:
             elif ds in dyn:
                 pieces = ordered_fragments(pieces, style_meetings=True)
             pieces = [('<span class="replacement-line">' + piece + '</span>') if 'class="meeting-group"' not in piece and 'data-custom-format="true"' not in piece and is_replacement(BeautifulSoup(piece, 'html.parser').get_text(' ', strip=True)) else piece for piece in pieces]
-            body = "<br/>".join(pieces) or '<span class="muted">Nog geen inhoud.</span>'
+            body = compact_lines("<br/>".join(pieces)) or '<span class="muted">Nog geen inhoud.</span>'
             event_cell_class = "event-cell live-only" if (not has_base_content and ds in dyn) else "event-cell"
             desktop_rows.append(f'<tr data-calendar-date="{ds}"><td class="date-cell">{html.escape(label)}</td><td class="{event_cell_class}">{body}</td></tr>')
             mobile_rows.append(f'<div class="mobile-day" data-calendar-date="{ds}"><div class="mobile-date">{html.escape(label)}</div><div class="mobile-events">{body}</div></div>')
