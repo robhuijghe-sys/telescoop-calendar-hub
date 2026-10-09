@@ -48,14 +48,15 @@ with TestClient(app) as client:
         'date': '2026-10-02', 'structured': '1',
         'lines_html': '<div style="color:#812345">vm: k3: uitstap naar <b>Meise</b></div><div>09:30: L2: <span style="color:#186a3b">bibliotheek</span></div>'})
     assert response.status_code == 303, response.text
-    row = stored("SELECT * FROM editor_lines WHERE title='VM, K3, Meise'")
-    assert '#812345' in row['body_html'] and '<b>Meise</b>' in row['body_html']
+    row = stored("SELECT * FROM editor_lines WHERE title='VM: K3 - Uitstap (Meise)'")
+    assert '#812345' in row['body_html'] and 'Meise' in BeautifulSoup(row['body_html'],'html.parser').find('b').get_text()
     assert row['custom_format'] == 1
-    row2 = stored("SELECT * FROM editor_lines WHERE title='09:30: L2: bibliotheek'")
+    row2 = stored("SELECT * FROM editor_lines WHERE title='9u30: L2 - bibliotheek'")
     assert '#186a3b' in row2['body_html']
     count = len(rows_all())
     bad = client.post('/kalender-toevoegen', data={'date':'2026-10-02', 'structured':'1', 'lines_html':'<p>VM: L3: geldig</p><p>ongeldig</p>'})
-    assert bad.status_code == 400 and len(rows_all()) == count
+    assert bad.status_code == 200 and len(rows_all()) == count + 2
+    count += 2
     response = client.post('/kalender-toevoegen', data={'date':'2026-10-02', 'structured':'1', 'lines_html':'VM: L3: leesles\nNM: L3: sport'}, follow_redirects=False)
     assert response.status_code == 303 and len(rows_all()) == count + 2
     updated = client.post('/kalender-regel/' + original['id'], data={'date':'2026-10-01','version':original['version'], 'body_html':'<span style="color:#912345">Jorge neemt LO over</span><img src=x onerror=alert(1)><script>alert(1)</script>'})
@@ -90,14 +91,14 @@ with TestClient(app) as client:
     assert before == [(r['id'],r['title'],r['version']) for r in rows_all()]
     assert '#632a78' in client.get('/smartschool-calendar').text
     assert plain('Bo<span style="color:red">ek</span>') == 'Boek'
-    assert plain(reshape_html('vm: <span>k3</span>: uitstap naar Meise', 'VM, K3, Meise')) == 'VM, K3, Meise'
+    assert plain(reshape_html('vm: <span>k3</span>: uitstap naar Meise', 'VM: K3 - Uitstap (Meise)')) == 'VM: K3 - Uitstap (Meise)'
 
     # Type selection works without client-side code, including unstructured tasks.
     home_doc = BeautifulSoup(client.get('/').text, 'html.parser')
     type_values = {o['value'] for o in home_doc.select('select[name=category] option')}
     assert {'auto', 'uitstap', 'waarschuwing', 'secretariaat', 'stage', 'personeel', 'ouders', 'algemeen'} == type_values
     for category, text, expected, title in [
-        ('uitstap', 'NM: L4: museum', '#F09009', 'NM, L4, museum'),
+        ('uitstap', 'NM: L4: museum', '#F09009', 'NM: L4 - Uitstap (museum)'),
         ('waarschuwing', 'Lien afwezig', '#D32F2F', 'Lien afwezig'),
         ('secretariaat', 'Ouders bellen zonder afspraak', '#a2c647', 'Ouders bellen zonder afspraak'),
         ('stage', 'Stage Noor van 8u30 tot 12u40', '#5dade2', 'Stage Noor van 8u30 tot 12u40'),

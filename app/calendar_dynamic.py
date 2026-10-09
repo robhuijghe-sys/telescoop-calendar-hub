@@ -310,6 +310,12 @@ def _event_line(row) -> str:
             if category_for_row(row) == "stage" else prefix + row["title"])
     if row["location"]:
         text += " — " + row["location"]
+    if category_for_row(row) != 'stage':
+        from app.display_format import normalize_text
+        moment = '' if row['all_day'] else f'{local_start.hour}u{local_start.minute:02d}'
+        if moment and local_start != local_end:
+            moment += f' - {local_end.hour}u{local_end.minute:02d}'
+        text = normalize_text(row['title'], moment=moment, location=row['location'])
     color = color_for_row(row)
     desc = ""
     if row["description"]:

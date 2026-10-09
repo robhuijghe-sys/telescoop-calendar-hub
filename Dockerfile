@@ -22,3 +22,4 @@ RUN python tests/day_order_smoke.py
 RUN python tests/stage_format_smoke.py
 RUN python tests/color_editor_smoke.py
 RUN python tests/day_editor_smoke.py
+RUN python tests/display_format_smoke.py

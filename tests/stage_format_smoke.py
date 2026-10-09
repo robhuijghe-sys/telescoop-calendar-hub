@@ -40,7 +40,7 @@ with TestClient(app) as client:
         view = soup.select_one(selector)
         label = view.find('span', string=expected)
         assert label and label['style'] == 'color:#5dade2'
-        assert '15.30-17.00u: Oudercontact L1' in view.get_text()
+        assert '15u30 - 17u00: L1 - Oudercontact' in view.get_text()
         assert view.get_text().count(expected) == 1
         assert '08.30-12.40u: Stage' not in view.get_text()
     # Rendering is presentation only: titles, timestamps and class names stay stored.

@@ -70,7 +70,7 @@ with TestClient(app) as client:
     assert 'Eline afwezig' in search.select_one('.day-preview').get_text()
 
     initial = edit(client)
-    assert '09.00-10.00u: Bibliotheek — Laken' in initial['body_html']
+    assert '9u00 - 10u00: Bibliotheek (Laken)' in initial['body_html']
     assert 'Neem boeken mee' in initial['body_html']
     before = rows_all()
     # Unmodified submits preserve IDs and original structured event metadata.
@@ -116,7 +116,7 @@ with TestClient(app) as client:
     fresh['body_html'] += '<br><span onclick="alert(1)">Veilig</span><script>alert(1)</script>'
     assert client.post('/kalender-dag/' + day, data=fresh).status_code == 200
     html = client.get('/smartschool-calendar').text
-    assert 'Museum — Laken' in html and '09.00-10.00u:' in html
+    assert 'Museum (Laken)' in html and '9u00 - 10u00:' in html
     assert 'Bibliotheek' not in html and 'onclick=' not in html and '<script>alert' not in html
     assert 'Neem boeken mee' in html and 'Andere dag' in html
     con = core.db()

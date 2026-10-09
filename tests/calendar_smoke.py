@@ -95,8 +95,8 @@ with TestClient(app) as client:
     r = client.get("/calendar-preview")
     check(r.status_code == 200, "preview must render")
     text = r.text
-    check("#99CA3B" in text and "Oudercontact L1" in text, "parent item must render green")
-    check("#C614A1" in text and "Zorgoverleg GR3" in text, "personnel item must render pink")
+    check("#99CA3B" in text and "L1 - Oudercontact" in text, "parent item must render green")
+    check("#C614A1" in text and "GR3 - Zorgoverleg" in text, "personnel item must render pink")
     check("#D32F2F" in text and "ZoCo afwezig" in text, "warning item must render red")
     check("@media (max-width:560px)" in text, "mobile breakpoint must exist")
     check("mobile-calendar" in text and "desktop-calendar" in text, "desktop and mobile renderers must exist")

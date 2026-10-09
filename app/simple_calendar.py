@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261008-original-calendar-colors'
+BUILD = 'railway-editor-20261009-uniform-calendar-format'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -200,6 +200,10 @@ def setup_editor():
     con.close()
     from app.latest_source import apply_latest_source
     apply_latest_source(original_snapshot, split_lines, clean_html, plain, safe_url)
+    if os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1':
+        from app.display_format import check_calendar
+        import sys
+        check_calendar(sys.modules[__name__], 'startup')
 
 
 def edited_snapshot():
@@ -263,6 +267,12 @@ async def editor_headers(request: Request, call_next):
         if len(await request.body()) > limit:
             return Response('Invoer te groot.', status_code=413)
     response = await call_next(request)
+    if (request.method == 'POST' and response.status_code < 400
+            and request.url.path.startswith(('/kalender-toevoegen', '/kalender-regel/', '/kalender-dag/', '/kalender-uitstap', '/public/create', '/api/v1/events', '/events/create'))
+            and os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1'):
+        from app.display_format import check_calendar
+        import sys
+        check_calendar(sys.modules[__name__], 'saved')
     if request.method == 'POST' and request.url.path in ('/public/create', '/kalender-toevoegen', '/kalender-uitstap') and response.status_code == 303:
         response.headers['Location'] = '/opgeslagen'
     if request.url.path.startswith('/calendar-fonts/'):
@@ -291,8 +301,16 @@ def health():
     con = core.db()
     con.execute('SELECT revision FROM editor_state WHERE id=1').fetchone()
     source = con.execute("SELECT value FROM settings WHERE key='editor_source_digest'").fetchone()
+    report = con.execute("SELECT value FROM settings WHERE key='calendar_format_last_check'").fetchone()
     con.close()
-    return {'ok': True, 'version': BUILD, 'source_digest': source[0] if source else None}
+    return {'ok': True, 'version': BUILD, 'source_digest': source[0] if source else None, 'format_check': json.loads(report[0]) if report else None}
+
+
+@app.post('/kalender-opmaak-controleren')
+def format_check():
+    from app.display_format import check_calendar
+    import sys
+    return check_calendar(sys.modules[__name__], 'scheduled')
 
 
 @app.get('/smartschool-calendar')
@@ -321,8 +339,8 @@ def calendar(request: Request):
 def home(saved: int = 0, added: int = 0):
     message = '<p class="ok">Opgeslagen. De kalender toont je wijziging bij de volgende opening; openstaande kalenders verversen binnen twee uur.</p>' if saved or added else ''
     types = [
-        ('auto', 'Automatisch per regel', 'Gebruik per regel: dagdeel of uur: klasgroep: locatie of activiteit.', 'VM: K3: uitstap naar plantentuin', ''),
-        ('uitstap', 'Uitstap', 'Gebruik per uitstap: VM/NM/hele dag of beginuur tot einduur: klasgroep: locatie.', 'VM: K3: plantentuin Meise', 'oranje'),
+        ('auto', 'Automatisch per regel', 'Typ elke activiteit op een aparte regel. Uren en klasgroepen krijgen automatisch de vaste opmaak.', 'VM: K3: uitstap naar plantentuin', ''),
+        ('uitstap', 'Uitstap', 'Gebruik per uitstap: uur of dagdeel: klasgroep - uitstap (plaats).', 'VM: K3: plantentuin Meise', 'oranje'),
         ('waarschuwing', 'Afwezigheid', 'Schrijf één afwezigheid per regel. Vervangingen mogen op aparte regels en blijven standaard zwart.', 'Lien afwezig', 'rood'),
         ('secretariaat', 'Taak secretariaat', 'Schrijf één taak per regel. Een klasgroep of uur is niet verplicht.', 'Secretariaat belt ouders zonder afspraak', 'groen'),
         ('stage', 'Stage', 'Schrijf één stage per regel, met de naam en eventueel klasgroep en uren.', 'Stage Imane K0K1 van 8u30 tot 12u40', 'lichtblauw'),
@@ -374,19 +392,8 @@ def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Fo
         raise HTTPException(400, 'Zet elke activiteit op een aparte regel met Enter of <br>.')
     if not rows or len(rows) > 100 or any(len(line) > 1000 for line in rows):
         raise HTTPException(400, 'Gebruik 1 tot 100 regels, met maximaal 1000 tekens per regel.')
-    if structured == '1' and category in ('auto', 'uitstap'):
-        normalized = []
-        for number, line in enumerate(rows, 1):
-            parts = re.split(r':\s+|\s+-\s+|,\s*', line, maxsplit=2)
-            if len(parts) != 3 or not all(p.strip() for p in parts):
-                raise HTTPException(400, f'Regel {number}: gebruik dagdeel of uur: klasgroep: locatie of activiteit. Bijvoorbeeld VM: K3: uitstap naar plantentuin. Er is niets opgeslagen.')
-            moment, group, activity = [p.strip() for p in parts]
-            if not re.fullmatch(r'(?:VM|NM|voormiddag|namiddag|hele dag|\d{1,2}(?:[u:.h]\d{0,2})?(?:\s*(?:-|tot)\s*\d{1,2}(?:[u:.h]\d{0,2})?)?|\d+(?:ste|de) uur)', moment, re.IGNORECASE):
-                raise HTTPException(400, f'Regel {number}: begin met VM, NM, hele dag of een uur, bijvoorbeeld 09:30. Er is niets opgeslagen.')
-            moment = {'voormiddag': 'VM', 'namiddag': 'NM', 'vm': 'VM', 'nm': 'NM'}.get(moment.lower(), moment)
-            normalized.append(f'{moment}: {group.upper()}: {activity}')
-        rows = normalized
-    rows = [bulk_outing(line) if infer_category(line, category) == 'uitstap' else line for line in rows]
+    from app.display_format import normalize_text
+    rows = [normalize_text(bulk_outing(line), outing=True) if category == 'uitstap' else normalize_text(line) for line in rows]
     con = core.db()
     try:
         con.execute('BEGIN IMMEDIATE')

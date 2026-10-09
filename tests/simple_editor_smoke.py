@@ -65,7 +65,7 @@ with TestClient(app) as client:
     row = next(r for r in rows_all() if r['title'] == 'Lien afwezig')
     assert client.post('/kalender-verwijderen/' + row['id'], data={'version': row['version']}).status_code == 200
     assert 'Lien afwezig' not in client.get('/smartschool-calendar').text
-    assert 'Veronica begeleidt L1' in client.get('/smartschool-calendar').text
+    assert 'L1 - Veronica begeleidt' in client.get('/smartschool-calendar').text
     setup_editor()
     assert len(rows_all()) == 4  # Restart neither reimports nor restores deleted rows.
     # Existing natural-language creation remains public and editable.
@@ -92,12 +92,12 @@ with TestClient(app) as client:
 
     before_count = len(rows_all())
     assert 'placeholder="VM: K3: uitstap naar plantentuin"' in client.get('/').text
-    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'vm - k3 - uitstap naar plantentuin\n09:30: L2: bibliotheek'}).status_code == 303
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'vm - k3 - uitstap naar plantentuin\n9u30: L2 - bibliotheek'}).status_code == 303
     assert len(rows_all()) == before_count + 2
-    assert any(r['title'] == 'VM, K3, plantentuin' for r in rows_all())
-    assert any(r['title'] == '09:30: L2: bibliotheek' for r in rows_all())
-    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'NM: L1: klas\nOnvolledige regel'}).status_code == 400
-    assert len(rows_all()) == before_count + 2
+    assert any(r['title'] == 'VM: K3 - Uitstap (plantentuin)' for r in rows_all())
+    assert any(r['title'] == '9u30: L2 - bibliotheek' for r in rows_all())
+    assert client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-08', 'structured': '1', 'lines': 'NM: L1: klas\nOnvolledige regel'}).status_code == 303
+    assert len(rows_all()) == before_count + 4
 
     for origin in ('null', 'https://telescoop-sgr8.smartschool.be', 'https://testserver'):
         response = client.post('/kalender-toevoegen', follow_redirects=False, data={'date': '2026-10-09', 'lines': 'Origin ' + origin}, headers={'Origin': origin})
@@ -119,12 +119,12 @@ with TestClient(app) as client:
     assert 'action="/kalender-uitstap"' in preview.text and 'value="L2"' in preview.text and 'value="plantentuin Meise"' in preview.text
     response = client.post('/kalender-uitstap', data={'date':'2027-06-03','moment':'VM','group':'L2','location':'plantentuin Meise'}, follow_redirects=False)
     assert response.status_code == 303 and response.headers['location'] == '/opgeslagen'
-    assert any(r['title']=='VM, L2, plantentuin Meise' for r in rows_all())
+    assert any(r['title']=='VM: L2 - Uitstap (plantentuin Meise)' for r in rows_all())
     assert client.post('/kalender-uitstap', data={'date':'2027-06-04','moment':'uren','group':'L2','location':'Meise','start':'09:00','end':'12:00'}, follow_redirects=False).status_code == 303
-    assert any(r['title']=='09:00 tot 12:00, L2, Meise' for r in rows_all())
+    assert any(r['title']=='9u00 - 12u00: L2 - Uitstap (Meise)' for r in rows_all())
     assert client.post('/kalender-uitstap', data={'date':'2027-06-04','moment':'uren','group':'L2','location':'Meise','start':'09:00','end':''}).status_code == 400
     con=core.db()
-    assert '#F09009' in con.execute("SELECT body_html FROM editor_lines WHERE title='VM, L2, plantentuin Meise'").fetchone()[0]
+    assert '#F09009' in con.execute("SELECT body_html FROM editor_lines WHERE title='VM: L2 - Uitstap (plantentuin Meise)'").fetchone()[0]
     con.close()
 
 print('TCH_SIMPLE_EDITOR_SMOKE_TEST=PASS')

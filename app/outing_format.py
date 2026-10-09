@@ -25,6 +25,22 @@ def outing_label(moment, group, location, start='', end=''):
 
 
 def bulk_outing(line):
+    from app.display_format import MOMENT, GROUP
+    head = MOMENT.match(line)
+    if head:
+        rest = line[head.end():].lstrip(' ,:-–—')
+        group = GROUP.match(rest)
+        if group:
+            destination = rest[group.end():].lstrip(' ,:-–—')
+            if destination:
+                moment = head[0]
+                match = re.fullmatch(r'(\d{1,2})[u:.h](\d{2})\s*(?:tot|[-–])\s*(\d{1,2})[u:.h](\d{2})', moment)
+                if match:
+                    a,b,c,d = match.groups()
+                    return outing_label('uren',group[0],destination,f'{int(a):02d}:{b}',f'{int(c):02d}:{d}')
+                if re.search(r'\d', moment):
+                    return f'{moment}, {group[0]}, {destination}'
+                return outing_label({'vm':'VM','nm':'NM','voormiddag':'VM','namiddag':'NM'}.get(moment.lower(),moment), group[0], destination)
     parts = re.split(r':\s+|\s+-\s+|,\s*', line, maxsplit=2)
     if len(parts) != 3:
         raise HTTPException(400, 'Gebruik voor uitstappen: VM/NM/hele dag of beginuur tot einduur, klas, locatie uitstap.')
