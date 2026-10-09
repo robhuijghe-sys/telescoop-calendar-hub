@@ -58,19 +58,21 @@ def compact_lines(value):
             if part:
                 node.insert_before(NavigableString(part))
         node.extract()
-    pending, has_text = False, False
+    pending, has_text = None, False
     for node in list(soup.descendants):
         if getattr(node, 'name', None) == 'br':
-            pending = True
-            node.extract()
+            if pending is not None or not has_text:
+                node.extract()
+            else:
+                pending = node
         elif isinstance(node, NavigableString):
             if not str(node).strip():
-                if pending or not has_text:
+                if pending is not None or not has_text:
                     node.extract()
                 continue
-            if pending and has_text:
-                node.insert_before(soup.new_tag('br'))
-            pending, has_text = False, True
+            pending, has_text = None, True
+    if pending is not None:
+        pending.extract()
     return str(soup)
 
 
