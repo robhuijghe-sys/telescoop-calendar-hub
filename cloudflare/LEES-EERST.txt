@@ -1,0 +1,36 @@
+DE TELESCOOP - KALENDER PUBLICEREN
+
+1. Pak het hele ZIP-bestand uit in een eigen map op je computer.
+2. Installeer zo nodig Node.js 24 of nieuwer (LTS): https://nodejs.org/en/download
+3. Dubbelklik START-KALENDER.cmd.
+4. Meld je aan bij Cloudflare in je eigen browser als daarom wordt gevraagd.
+   Gebruik een Free-account. Het programma wijzigt je abonnement niet en
+   koopt geen domein. Een bestaand betaald account houdt zijn eigen tarieven.
+5. Als Cloudflare een workers.dev-naam vraagt: kies een eigen gratis naam.
+6. Na de melding KLAAR vind je:
+   - private-import/BEHEERLINK.txt: je persoonlijke beheerlink;
+   - SMARTSCHOOL-code.txt: de HTML-code voor het Smartschool-nieuwsbericht;
+   - KALENDER-LINK.txt: de openbare kalenderlink.
+
+In Smartschool: open de HTML-bron van je nieuwsbericht, vervang de oude
+kalender-iframe door de inhoud van SMARTSCHOOL-code.txt en sla op.
+Controleer eerst zelf de kalender en beheerfunctie voordat je de oude
+Railway-versie buiten gebruik stelt.
+
+De meegeleverde inhoud is de aangeleverde bron van 26 september 2026:
+152 kalenderdagen, 401 afzonderlijk verwijderbare regels en 7 links.
+Latere wijzigingen op Railway moeten voor omschakeling worden vergeleken
+met deze bron. De knop 'Kalender wijzigen' staat boven de kalender.
+
+Aptos wordt gebruikt als het op je toestel staat; anders verschijnt Roboto.
+Een open kalender ververst om de 30 minuten. Je hoeft daarvoor niet in te loggen.
+
+Bewaar de volledige uitgepakte map. Opnieuw starten hergebruikt dezelfde
+Cloudflare-installatie en beheersleutel. Herhaalde import herstelt geen
+verwijderde items of gewijzigde links. De private-import-map bevat je
+schoolgegevens en na installatie ook de beheersleutel: deel die map niet.
+De openbare kalender is leesbaar voor iedereen met de URL.
+
+Controle: 18 kalendertests, lokale workerd/D1-test en controle van de
+publicatielogica met gesimuleerde Cloudflare-antwoorden. De daadwerkelijke
+publicatie kan pas vanuit je eigen computer/account worden bevestigd.

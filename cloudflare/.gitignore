@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.wrangler-check.json
+.dev.vars
+.env*
+dist/
+
+private-import/
+.wrangler.publish.json
+SMARTSCHOOL-code.txt
+KALENDER-LINK.txt
