@@ -26,6 +26,23 @@ CSS = '''
 '''
 
 
+def scoped_css(scope):
+    """Reuse the calendar styles in the management page without styling its forms."""
+    def rule(match):
+        selectors, declarations = match.groups()
+        scoped = []
+        for selector in selectors.split(','):
+            selector = selector.strip()
+            if selector in ('html','body'):
+                scoped.append(scope)
+            elif '.wrap' in selector:
+                scoped.append(selector.replace('.wrap',scope))
+            else:
+                scoped.append(scope+' '+selector)
+        return ','.join(scoped)+'{'+declarations+'}'
+    return re.sub(r'([^{}]+)\{([^{}]*)\}',rule,CSS)
+
+
 def emphasize_classes(rich):
     """Emphasize class labels, including labels split across styled text or links."""
     soup = BeautifulSoup(rich, 'html.parser')
@@ -69,23 +86,27 @@ def retain_metadata(s, originals, fragments):
     return result
 
 
-def render_calendar(s, hide_past=True):
-    con = s.core.db()
+def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=None):
+    selected = set(dates) if dates is not None else None
+    owned = connection is None
+    con = connection if connection is not None else s.core.db()
     try:
-        con.execute('BEGIN')
+        if owned:con.execute('BEGIN')
         layout = json.loads(con.execute("SELECT value FROM settings WHERE key='editor_layout'").fetchone()[0])
         records = [dict(r) for r in con.execute('SELECT * FROM editor_lines WHERE deleted=0 ORDER BY date_local,id')]
         events = [dict(r) for r in con.execute('SELECT * FROM events WHERE visible_in_embed=1 ORDER BY start_at,id')]
         hidden = {r[0] for r in con.execute('SELECT date_local FROM editor_days WHERE hidden=1')}
         settings = dict(con.execute('SELECT key,value FROM settings'))
     finally:
-        con.close()
+        if owned:con.close()
     days = {e['date']:[] for e in layout.get('entries',[])}
     for row in records:
+        if selected is not None and row['date_local'] not in selected:continue
         days.setdefault(row['date_local'],[]).append(dict(rich=s.without_bold(s.clean_html(row['body_html'])),type=row['activity_type'],
             whole_day=row['whole_day'],custom=row['custom_format'],event=False))
     for event in events:
         ds = s.datetime.fromisoformat(event['start_at']).astimezone(s.core.TZ).date().isoformat()
+        if selected is not None and ds not in selected:continue
         days.setdefault(ds,[]).append(dict(rich=s.without_bold(s.clean_html(_event_line(event))),type=category_for_row(event),
             whole_day=event['all_day'],custom=bool(event['title_html'] or event['description_html']),event=True))
     today = s.datetime.now(s.core.TZ).date()
@@ -93,7 +114,8 @@ def render_calendar(s, hide_past=True):
     months = {}
     for ds,items in sorted(days.items()):
         day = s.datetime.fromisoformat(ds).date()
-        if ds in hidden or (hide_past and day<today) or (day.year,day.month)<(today.year,today.month) or (day.year,day.month)>school_end:
+        if selected is not None and ds not in selected:continue
+        if ds in hidden or (hide_past and day<today) or (selected is None and ((day.year,day.month)<(today.year,today.month) or (day.year,day.month)>school_end)):
             continue
         months.setdefault((day.year,day.month),[]).append((ds,items))
 
@@ -176,10 +198,11 @@ def render_calendar(s, hide_past=True):
         return f'<section class="panel {key}"><h3>{labels[key]}</h3>'+body+'</section>'
 
     blocks=[]
+    rendered={}
     for (year,month),entries in months.items():
         c1,c2=MONTH_PALETTES[month]
         gradient=f'background:linear-gradient(135deg,{c1} 0%,{c2} 100%)'
-        focus=settings.get(f'month_focus_{year}_{month:02d}') or layout.get('focus',{}).get(f'{year}-{month:02d}','')
+        focus=settings.get(f'month_focus_{year}_{month:02d}',layout.get('focus',{}).get(f'{year}-{month:02d}',''))
         focus_html=f'<div class="focus"><span class="dot" style="background:{c1}"></span>{html.escape(focus)}</div>' if focus else ''
         cards=[]
         for ds,items in entries:
@@ -217,6 +240,8 @@ def render_calendar(s, hide_past=True):
                 card+='<div class="day-columns"><div class="day-main">'+left+'</div><aside class="day-stages" aria-label="Stages">'+panel('stage',buckets['stage'])+'</aside></div>'
             elif left:card+='<div class="day-main">'+left+'</div>'
             if not items:card+='<p class="muted empty-day">Nog geen inhoud.</p>'
-            cards.append(card+'</div></article>')
+            rendered[ds]=card+'</div></article>'
+            cards.append(rendered[ds])
         blocks.append(f'<section class="month-card"><div class="month-head" style="{gradient}"><span class="month-title">{MONTH_NAMES[month]}</span><span class="season">{SEASONS[month]}</span></div>'+focus_html+''.join(cards)+'</section>')
+    if cards_only:return rendered
     return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="7200"><title>Schoolkalender De Telescoop</title><style>'+CSS+'</style></head><body><main class="wrap"><img class="logo" src="https://telescoop-sgr8.smartschool.be/public/telescoop-sgr8/Images/P8JUKt6zzs28fnA9LjPg2owGK1768144749.PNG" alt="De Telescoop"><div class="links">'+s.links_html()+'</div>'+''.join(blocks)+'</main></body></html>'

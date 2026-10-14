@@ -25,3 +25,5 @@ RUN python tests/day_editor_smoke.py
 RUN python tests/display_format_smoke.py
 RUN python tests/bulk_replace_smoke.py
 RUN python tests/day_cards_smoke.py
+
+RUN python tests/month_focus_smoke.py

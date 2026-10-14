@@ -115,12 +115,8 @@ with TestClient(app) as c:
     assert c.post('/kalender-vervangen/voorbeeld', data=dict(params, find='')).status_code == 400
     assert c.post('/kalender-vervangen/voorbeeld', data=dict(params, replacement='bad\ntext')).status_code == 400
     assert c.post('/kalender-vervangen/voorbeeld', data=params, headers={'origin': 'https://wrong.example'}).status_code == 403
-    proposals = c.get('/kalender-voorstellen')
-    assert proposals.status_code == 200
-    assert proposals.text.count('Fatima bibliotheek') == 2
-    assert 'De vertrouwde kalender' in proposals.text and 'Een dagkaart' in proposals.text
-    assert c.get('/kalender-voorstellen?date=' + days[1]).status_code == 200
-    assert c.get('/kalender-voorstellen?date=2026-02-31').status_code == 400
+    assert c.get('/kalender-voorstellen').status_code == 404
+    assert '/kalender-voorstellen' not in c.get('/').text
     assert c.get('/kalender-vervangen?q=Fatima').status_code == 200
 
 print('TCH_BULK_REPLACE_SMOKE_TEST=PASS')

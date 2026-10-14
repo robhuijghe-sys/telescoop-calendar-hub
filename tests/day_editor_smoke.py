@@ -64,6 +64,13 @@ with TestClient(app) as client:
     assert not calendar.select('b,strong')
     assert not any('font-weight:' in tag.get('style', '') for tag in calendar.select('[style]'))
     assert '.wrap,.wrap *{font-weight:400!important}' in str(calendar)
+    # The management overview uses the same day panels as the live calendar.
+    for card in listing.select('.day-card'):
+        live = calendar.select_one('[data-calendar-date="'+card['data-calendar-date']+'"]')
+        assert str(card.select_one('.calendar-body')).replace(' day-preview','') == str(live.select_one('.calendar-body'))
+        assert card.select_one('.day-header')['style'] == live.select_one('.day-header')['style']
+    assert listing.select_one('.day-preview > .absence')
+    assert not listing.select('a[href="/kalender-voorstellen"]')
     # Searching a single agenda phrase still opens all content on its day.
     search = BeautifulSoup(client.get('/kalender-wijzigen?q=boeken').text, 'html.parser')
     assert len(search.select('.day-card')) == 1

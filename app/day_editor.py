@@ -10,14 +10,16 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from bs4 import BeautifulSoup
 
 from app.day_order import ordered_fragments
-from app.calendar_dynamic import _event_line
+from app.calendar_dynamic import _event_line, MONTH_NAMES, MONTH_PALETTES
+from app.day_cards import render_calendar, scoped_css
+from app.month_focus import focus_state
 
 
-CSS = '''
-.day-card{border:1px solid var(--line);border-top:2px solid var(--school-green);border-radius:8px;margin:18px 0;overflow:hidden}.day-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--soft);padding:6px 12px;border-bottom:1px solid var(--line)}.day-heading h3{margin:0;font-size:15px;font-weight:400;color:var(--school-navy)}.day-heading .btn,.day-heading button{padding:5px 10px;font-size:14px;line-height:1.3;margin:0;width:auto;white-space:nowrap}.day-heading-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}.day-heading-actions form{margin:0}.day-preview{line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;padding:14px}.day-preview,.day-preview *,.day-form .editor-visual,.day-form .editor-visual *{font-weight:400!important}.day-preview p,.day-preview div{margin:0}.day-preview a{color:inherit}
-.day-dialog{border:1px solid #e5dfd8;border-radius:16px;padding:0;width:min(920px,calc(100% - 24px));max-height:90vh;max-height:90dvh;color:#2f2926}.day-dialog::backdrop{background:rgba(20,32,49,.55)}.day-dialog .day-form{padding:22px}.day-form .editor-visual,.day-form textarea{min-height:300px;max-height:50vh;overflow:auto;font-size:16px}.day-actions{display:flex;flex-wrap:wrap;gap:10px;position:sticky;bottom:0;background:white;padding:12px 0;margin:0}.day-error{background:#fff5d9;border:1px solid #efd28a;border-radius:8px;padding:12px}.day-form h2{margin:0 0 10px}label,.muted{font-size:14px}
-@media(max-width:600px){.day-heading{gap:8px;padding:6px 10px;flex-wrap:wrap}.day-heading h3{font-size:14px}.day-heading .btn,.day-heading button{font-size:13px;padding:5px 7px;width:auto}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:230px}}
-'''
+CSS = scoped_css('.calendar-preview') + """
+main{max-width:1100px}.calendar-preview{padding:0;max-width:none}.calendar-preview .day-card{border:0;border-radius:0;overflow:visible}.calendar-preview .day-header{border-bottom:0}.calendar-preview .day-heading-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}.day-heading-actions form{margin:0}.day-heading-actions .btn,.day-heading-actions button{padding:5px 10px;font-size:13px;line-height:1.15;margin:0;width:auto;white-space:nowrap}.calendar-preview .day-heading-actions .btn{background:white;color:#232563}.calendar-preview .day-heading-actions .danger{background:white;color:#E02020;border-color:#E02020}.editor-month-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-radius:10px;margin:24px 0 10px;color:white}.editor-month-heading h2{margin:0;color:white;font-size:22px;font-weight:700!important}.calendar-preview .editor-month-heading .btn{font-weight:400!important;background:white;color:#232563;font-size:13px;padding:6px 10px;white-space:nowrap}.editor-month-focus{margin:0 0 18px;padding:0 2px;font-size:13px;line-height:1.15}.editor-month-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
+.day-dialog{border:1px solid #e5dfd8;border-radius:16px;padding:0;width:min(1000px,calc(100% - 24px));max-height:90vh;max-height:90dvh;color:#000}.day-dialog::backdrop{background:rgba(20,32,49,.55)}.day-dialog .day-form{padding:22px}.day-form .editor-visual,.day-form textarea{min-height:300px;max-height:50vh;overflow:auto;font-size:14px;line-height:1.15}.day-form .editor-visual,.day-form .editor-visual *{color:#000!important;font-weight:400!important;line-height:1.15}.day-form .editor-tools label,.day-form .editor-tools [data-action=color],.day-form .editor-tools [data-action=bold]{display:none}.day-actions{display:flex;flex-wrap:wrap;gap:10px;position:sticky;bottom:0;background:white;padding:12px 0;margin:0}.day-error{background:#fff5d9;border:1px solid #efd28a;border-radius:8px;padding:12px}.day-form h2{margin:0 0 10px;font-weight:700}label,.muted{font-size:14px}
+@media(max-width:720px){.calendar-preview .day-header{flex-wrap:wrap}.editor-month-heading{flex-wrap:wrap}.editor-month-heading h2{font-size:20px}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:230px}}
+"""
 
 SCRIPT = '''<script id="whole-day-windows">
 document.addEventListener('click', event => {
@@ -102,7 +104,7 @@ def register_day_editor(s):
     s.public._remove_route('/kalender-wijzigen', 'GET')
 
     @s.app.get('/kalender-wijzigen')
-    def day_list(q: str = '', date: str = '', p: int = 1, saved: int = 0, deleted: int = 0):
+    def day_list(q: str = '', date: str = '', p: int = 1, saved: int = 0, deleted: int = 0, focus_saved: int = 0):
         def normalized(value):
             return ''.join(c for c in unicodedata.normalize('NFD', value.lower())
                            if not unicodedata.combining(c)).replace('afwezigheid', 'afwezig')
@@ -121,33 +123,57 @@ def register_day_editor(s):
                 search = normalized(ds + ' ' + ds[8:] + '/' + ds[5:7] + ' ' + s.plain(rich))
                 if all(term in search for term in terms):
                     days.append((ds, token, rich, len(grouped[ds])))
+            p = min(max(1, p), max(1, (len(days) + 19) // 20))
+            start = (p - 1) * 20
+            visible = days[start:start + 20]
+            cards = render_calendar(s,hide_past=False,dates=[d[0] for d in visible],cards_only=True,connection=con)
+            focuses = {d[0][:7]:focus_state(con,d[0][:7])[0] for d in visible}
         finally:
             con.close()
-        p = min(max(1, p), max(1, (len(days) + 19) // 20))
-        start = (p - 1) * 20
         body = '<p class="ok" role="status">Wijziging opgeslagen.</p>' if saved else ''
         if deleted:
             body += '<p class="ok" role="status">Dag gewist.</p>'
+        if focus_saved:
+            body += '<p class="ok" role="status">Maandfocus opgeslagen.</p>'
         body += (f'<div class="card"><h2>Kalender wijzigen</h2><form>'
                  f'<label>Zoeken op tekst of datum</label><input name="q" value="{s.esc(q, quote=True)}">'
                  f'<label>Datum (optioneel)</label><input type="date" name="date" value="{s.esc(date, quote=True)}">'
                  '<p><button>Zoeken</button> <a href="/kalender-wijzigen">Alles tonen</a></p></form>'
                  f'<p><a class="btn alt" href="/kalender-vervangen?{s.esc(urlencode({"q": q}), quote=True)}">Terugkerende tekst vervangen</a></p>'
-                 f'<p class="muted">{len(days)} {"dag" if len(days) == 1 else "dagen"} · {sum(d[3] for d in days)} kalenderregels</p>')
+                 f'<p class="muted">{len(days)} {"dag" if len(days) == 1 else "dagen"} · {sum(d[3] for d in days)} kalenderregels</p></div><div class="calendar-preview">')
         dialogs = []
-        for ds, token, rich, count in days[start:start + 20]:
+        month = None
+        for ds, token, rich, count in visible:
+            if ds[:7]!=month:
+                if month is not None:body+='</section>'
+                month=ds[:7]
+                year,number=map(int,month.split('-'))
+                c1,c2=MONTH_PALETTES[number]
+                body+=(f'<section class="editor-month" data-calendar-month="{month}">'
+                       f'<div class="editor-month-heading" style="background:linear-gradient(135deg,{c1} 0%,{c2} 100%)">'
+                       f'<h2>{MONTH_NAMES[number]} {year}</h2><a class="btn" href="/kalender-maandfocus/{month}">Maandfocus wijzigen</a></div>')
+                if focuses[month]:body+=f'<div class="editor-month-focus"><span class="editor-month-dot" style="background:{c1}"></span>{s.esc(focuses[month])}</div>'
             ident = 'day-window-' + ds
             confirmation = 'Dag ' + label(ds) + ' wissen? Alle activiteiten, vervangingen en agenda’s van deze dag worden verwijderd.'
             confirm_script = s.esc('return confirm(' + json.dumps(confirmation, ensure_ascii=False) + ')', quote=True)
-            body += (f'<section class="day-card"><div class="day-heading"><h3>{label(ds)}</h3>'
-                     '<div class="day-heading-actions">'
-                     f'<a class="btn" href="/kalender-dag/{ds}" data-edit-day="{ident}">Bewerken</a>'
-                     f'<form method="post" action="/kalender-dag-verwijderen" onsubmit="{confirm_script}">'
-                     f'<input type="hidden" name="date" value="{ds}"><input type="hidden" name="version" value="{token}">'
-                     f'<button class="danger" aria-label="Dag {label(ds)} wissen">Dag wissen</button></form></div></div>'
-                     f'<div class="day-preview">{rich}</div></section>')
+            card = BeautifulSoup(cards[ds],'html.parser')
+            article = card.select_one('.calendar-day')
+            article['class'].append('day-card')
+            heading = card.select_one('.day-header')
+            heading['class'].append('day-heading')
+            heading.select_one(':scope > span').decompose()
+            actions = BeautifulSoup(
+                '<div class="day-heading-actions">'
+                f'<a class="btn" href="/kalender-dag/{ds}" data-edit-day="{ident}">Bewerken</a>'
+                f'<form method="post" action="/kalender-dag-verwijderen" onsubmit="{confirm_script}">'
+                f'<input type="hidden" name="date" value="{ds}"><input type="hidden" name="version" value="{token}">'
+                f'<button class="danger" aria-label="Dag {label(ds)} wissen">Dag wissen</button></form></div>','html.parser')
+            heading.append(actions.div)
+            card.select_one('.calendar-body')['class'].append('day-preview')
+            body+=str(article)
             dialogs.append(f'<dialog class="day-dialog" id="{ident}" aria-labelledby="day-title-{ds}">'
                            + form(ds, token, rich, modal=True) + '</dialog>')
+        if month is not None:body+='</section>'
         if not days:
             body += '<p>Geen dagen gevonden. Probeer een andere datum of zoektekst.</p>'
         for number, text in ((p - 1, 'Vorige'), (p + 1, 'Volgende')):

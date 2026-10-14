@@ -2,17 +2,21 @@
 
 ## Actuele dagkaarten (14 oktober 2026)
 
-De bestaande `/smartschool-calendar`-URL toont de volledige kalender als responsieve dagkaarten. Dagbalken gebruiken de bestaande maandgradiënten; alle vakken hebben een witte achtergrond. Afwezigheden en vervangingen staan bovenaan, het dagprogramma en praktische afspraken in de hoofdkolom, overleg met zijn agendapunten bij elkaar en stages in een aparte kolom. Op een smal scherm komen de vakken onder elkaar. Praktische afspraken hebben een groene rand; uitstappen hebben gewone tekst. De uurkolom is breed genoeg voor een volledig bereik op één regel en heeft geen scheidingslijnen tussen regels. Nascholingen zonder opgegeven dagdeel, expliciete volledige dagen en bosklassen voor een hele klas krijgen DAG.
+De bestaande `/smartschool-calendar`-URL toont de volledige kalender als responsieve dagkaarten. Dagbalken gebruiken de bestaande maandgradiënten; alle vakken hebben een witte achtergrond. Afwezigheden en vervangingen staan bovenaan, het dagprogramma en praktische afspraken in de hoofdkolom, overleg met zijn agendapunten bij elkaar en stages in een aparte kolom. Op een smal scherm komen de vakken onder elkaar. Praktische afspraken hebben een groene rand; uitstappen hebben gewone tekst. De uurkolom is breed genoeg voor een volledig bereik op één regel en heeft geen scheidingslijnen tussen regels. Nascholingen zonder opgegeven dagdeel, expliciete volledige dagen en bosklassen voor een hele klas krijgen DAG. De regelafstand in alle vakken is 1,15; de activiteitstekst is zwart. Maand-, dag- en vaktitels en klasgroepen in het dagprogramma zijn vet. Overleg heeft rand en titel #D31996, praktische afspraken #68991C en afwezigheden #E02020. Het stagevak blijft ook op dagen met uitsluitend stages in de rechterkolom; de overbodige tekst Stage verschijnt niet in de regels.
 
 De migratie voegt uitsluitend `activity_type` en `whole_day` aan `editor_lines` toe. Bestaande tekst, record-ID's, verwijzingen en versies blijven behouden. Nieuwe toevoegingen bewaren de gekozen typecategorie, die bij het renderen voorrang krijgt op tekstherkenning. De optie Hele dag zet DAG in de tijdkolom. Bewerkingen van één regel, volledige dagen en batchvervangingen houden deze metadata bij. De oude regels met type `auto` worden op hun bestaande tekst ingedeeld. De kalender gebruikt één DOM voor desktop en mobiel, dezelfde dagelijkse verwijdering van oude dagen en dezelfde ETag-cache.
+
+## Bewerken met dezelfde dagindeling
+
+`/kalender-wijzigen` toont dezelfde dagvakken, klasnadruk, maandgradiënten en regelafstand als de Smartschoolkalender. Het overzicht en de kalender gebruiken dezelfde renderer. Dagversies en de zichtbare kaarten worden uit dezelfde databaselezing opgebouwd. Zoeken toont de volledige dag; bestaande dagvensters bewaren tekst, links, types en volledige-dagkeuzes bij opslaan. De oude voorstellenpagina en zijn navigatieknop zijn verwijderd.
+
+Via Maandfocus wijzigen kan de focusregel van iedere getoonde maand worden aangepast. `/kalender-maandfocus/{YYYY-MM}` bewaart een geversioneerde override in de bestaande settings. Gelijktijdige wijzigingen worden geweigerd met HTTP 409 en oorspronkelijke teksten blijven in het auditlog bewaard.
 
 ## Zoeken en vervangen (14 oktober 2026)
 
 `/kalender-vervangen` vervangt een stukje tekst of een volledige zichtbare regel, vanaf vandaag, in de hele kalender of in een gekozen periode. De voorafgaande vergelijking toont iedere gewijzigde regel met datum, oude tekst en nieuwe tekst; tot bevestiging blijven de gegevens onaangeroerd. Hoofdlettergevoelig zoeken is optioneel. Kleuren, links en niet-gematchte regels blijven behouden.
 
 Een ondertekend voorbeeld blijft een uur geldig. De applicatie berekent de volledige verzameling wijzigingen opnieuw binnen één SQLite-schrijftransactie. Gewijzigde, verwijderde of nieuwe treffers laten de hele bewerking stoppen met HTTP 409. Het auditlog bewaart de originele records. De succespagina biedt een uur lang ongedaan maken; dit herstelt de hele bewerking alleen als alle betrokken records nog overeenkomen. Zoals bij de bestaande dagbewerking wordt een gewijzigde zichtbare tekst van een gestructureerde activiteit opgeslagen als kalenderregels; het oorspronkelijke event met zijn metadata blijft verborgen bewaard. Ongewijzigde gestructureerde activiteiten blijven intact.
-
-`/kalender-voorstellen` toont twee uitsluitend visuele voorstellen: de bestaande kalender met witruimte tussen activiteitengroepen en een dagkaart met vaste blokken en een tijdkolom. Beide lezen dezelfde huidige kalenderdag uit de databank; zonder activiteiten vandaag wordt de eerstvolgende dag gekozen. Via de datumkeuze zijn andere dagen te vergelijken. Schoolgegevens worden niet gekopieerd naar de broncode. De Smartschoolweergave wordt hierdoor niet gewijzigd.
 
 ## Actuele publieke kalender (30 september 2026)
 
@@ -23,11 +27,11 @@ De Railway-service start met `app.simple_calendar:app`. De oorspronkelijke SQLit
 - `/kalender-links`: omschrijvingen en links toevoegen, aanpassen en verwijderen.
 - `/smartschool-calendar`: dezelfde Smartschool-URL, met alle verwijzingen onder het logo en `🔗 Kalender wijzigen` boven de kalender. Verversing elke 7200 seconden, Aptos met lokaal geleverde Roboto-reserve.
 
-Invoeren, activiteiten aanpassen en linkomschrijvingen gebruiken dezelfde compacte HTML-editor: tekstkleur, vet, opmaak wissen en een HTML-weergave. Gekozen kleuren blijven bewaard in SQLite en verschijnen op desktop en mobiel in de Smartschoolkalender. Opmaak wordt bij opslaan geschoond; de HTML-weergave en geplakte inhoud kunnen geen scripts invoegen. De bestaande categorie- en stagekleuren blijven de standaard; expliciet gekozen tekstkleuren krijgen voorrang. De migratie voegt uitsluitend velden toe en verandert geen bestaande activiteiten of verwijzingen.
+Tekst en links worden bij opslaan geschoond. De HTML-editor kan geen scripts invoegen. Bestaande opmaak blijft in SQLite behouden; de kalender bepaalt de zichtbare tekst-, titel- en randopmaak per vak. Linkomschrijvingen hebben hun eigen editor.
 
-Bij toevoegen kiest **Type** de standaardkleur: uitstap oranje, afwezigheid rood, taak secretariaat groen (`#a2c647`, zoals bestaande secretariaatstaken), stage lichtblauw, personeel/overleg paars, ouders groen en algemeen donkergrijs. Automatisch per regel blijft beschikbaar. De gekozen kleur verschijnt meteen in de editor en wordt ook zonder JavaScript bij opslaan toegepast. Uitstappen behouden hun vaste notatie; de overige expliciete types accepteren gewone tekstregels zonder verplichte klasgroep of uren. Vervangingsregels blijven standaard zwart en een handmatig gekozen tekstkleur blijft behouden.
+Bij toevoegen bepaalt Type in welk dagvak een activiteit komt; de activiteitstekst blijft zwart. Automatisch per regel blijft beschikbaar. Uitstappen behouden hun vaste notatie; overige types accepteren vrije tekst zonder verplichte klasgroep of uren. Een expliciete hele dag verschijnt als DAG.
 
-Stages worden lichtblauw (`#5dade2`) en vet weergegeven als `Stage [naam] van 8u30 tot 12u40`. De uren staan achter de naam en gebruiken Belgische tijd. Bestaande titels, klasvermeldingen en opgeslagen uren blijven behouden; de weergaveregel geldt ook voor eerder als algemene activiteit opgeslagen stages. Bij een stage zonder opgegeven uren worden geen uren verzonnen.
+Stage-uren staan achter of onder de naam en gebruiken Belgische tijd. Bestaande titels, klasvermeldingen en opgeslagen uren blijven behouden. Er worden geen uren verzonnen voor stages zonder opgegeven tijden.
 
 Deze schermen zijn bewust voor iedereen met de URL bruikbaar, zonder account of toegangscode. Verwijderen verbergt een regel; de oorspronkelijke gegevens en het auditlog blijven bewaard. De kalender rendert uit een cache die na elke databasewijziging ongeldig wordt; ongewijzigde browseraanvragen ontvangen HTTP 304. Er is geen achtergrondpolling of betaalde AI-API.
 

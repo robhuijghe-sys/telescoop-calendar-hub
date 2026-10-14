@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261014-compact'
+BUILD = 'railway-editor-20261014-management-cards'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -245,7 +245,7 @@ snapshot._top_links_html = links_html
 
 
 def page(title, body):
-    nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-vervangen">Zoeken en vervangen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a><a class="btn alt" href="/kalender-voorstellen">Voorstellen dagoverzicht</a></nav>'
+    nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-vervangen">Zoeken en vervangen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a></nav>'
     return themed_document(original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js" defer></script></body>'))
 
 
@@ -733,6 +733,6 @@ from app.day_editor import register_day_editor
 import sys
 register_day_editor(sys.modules[__name__])
 from app.bulk_replace import register_bulk_replace
-from app.layout_proposals import register_layout_proposals
 register_bulk_replace(sys.modules[__name__])
-register_layout_proposals(sys.modules[__name__])
+from app.month_focus import register_month_focus
+register_month_focus(sys.modules[__name__])
