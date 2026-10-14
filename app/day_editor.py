@@ -5,20 +5,25 @@ import re
 import unicodedata
 from urllib.parse import urlencode
 
-from fastapi import Form, HTTPException
+from fastapi import Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from bs4 import BeautifulSoup
 
 from app.day_order import ordered_fragments
 from app.calendar_dynamic import _event_line, MONTH_NAMES, MONTH_PALETTES
-from app.day_cards import render_calendar, scoped_css
+from app.day_cards import PANEL_LABELS, render_calendar, scoped_css
+from app.section_editor import save_sections
 from app.month_focus import focus_state
 
 
-CSS = scoped_css('.calendar-preview') + """
+CSS = scoped_css('.calendar-preview') + scoped_css('.calendar-edit-panels') + """
 main{max-width:1100px}.calendar-preview{padding:0;max-width:none}.calendar-preview .day-card{border:0;border-radius:0;overflow:visible}.calendar-preview .day-header{border-bottom:0}.calendar-preview .day-heading-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}.day-heading-actions form{margin:0}.day-heading-actions .btn,.day-heading-actions button{padding:5px 10px;font-size:13px;line-height:1.15;margin:0;width:auto;white-space:nowrap}.calendar-preview .day-heading-actions .btn{background:white;color:#232563}.calendar-preview .day-heading-actions .danger{background:white;color:#E02020;border-color:#E02020}.editor-month-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-radius:10px;margin:24px 0 10px;color:white}.editor-month-heading h2{margin:0;color:white;font-size:22px;font-weight:700!important}.calendar-preview .editor-month-heading .btn{font-weight:400!important;background:white;color:#232563;font-size:13px;padding:6px 10px;white-space:nowrap}.editor-month-focus{margin:0 0 18px;padding:0 2px;font-size:13px;line-height:1.15}.editor-month-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
-.day-dialog{border:1px solid #e5dfd8;border-radius:16px;padding:0;width:min(1000px,calc(100% - 24px));max-height:90vh;max-height:90dvh;color:#000}.day-dialog::backdrop{background:rgba(20,32,49,.55)}.day-dialog .day-form{padding:22px}.day-form .editor-visual,.day-form textarea{min-height:300px;max-height:50vh;overflow:auto;font-size:14px;line-height:1.15}.day-form .editor-visual,.day-form .editor-visual *{color:#000!important;font-weight:400!important;line-height:1.15}.day-form .editor-tools label,.day-form .editor-tools [data-action=color],.day-form .editor-tools [data-action=bold]{display:none}.day-actions{display:flex;flex-wrap:wrap;gap:10px;position:sticky;bottom:0;background:white;padding:12px 0;margin:0}.day-error{background:#fff5d9;border:1px solid #efd28a;border-radius:8px;padding:12px}.day-form h2{margin:0 0 10px;font-weight:700}label,.muted{font-size:14px}
-@media(max-width:720px){.calendar-preview .day-header{flex-wrap:wrap}.editor-month-heading{flex-wrap:wrap}.editor-month-heading h2{font-size:20px}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:230px}}
+.day-dialog{border:1px solid #e5dfd8;border-radius:16px;padding:0;width:min(1000px,calc(100% - 24px));max-height:90vh;max-height:90dvh;color:#000}.day-dialog::backdrop{background:rgba(20,32,49,.55)}.day-dialog .day-form{padding:22px}.day-form .editor-visual,.day-form textarea{min-height:95px;max-height:50vh;overflow:auto;font-size:14px;line-height:1.15}.day-form .editor-visual,.day-form .editor-visual *{color:#000!important;font-weight:400!important;line-height:1.15}.day-form .editor-tools label,.day-form .editor-tools [data-action=color],.day-form .editor-tools [data-action=bold]{display:none}.day-actions{display:flex;flex-wrap:wrap;gap:10px;position:sticky;bottom:0;background:white;padding:12px 0;margin:0}.day-error{background:#fff5d9;border:1px solid #efd28a;border-radius:8px;padding:12px}.day-form h2{margin:0 0 10px;font-weight:700}label,.muted{font-size:14px}
+@media(max-width:720px){.calendar-preview .day-header{flex-wrap:wrap}.editor-month-heading{flex-wrap:wrap}.editor-month-heading h2{font-size:20px}.day-dialog .day-form{padding:16px}.day-actions>*{width:100%}.day-form .editor-visual,.day-form textarea{min-height:95px}}
+"""
+
+CSS += """
+.calendar-edit-panels{padding:0;max-width:none}.calendar-edit-panels .panel h3{margin-bottom:8px}.calendar-edit-panels .html-editor{margin:0}.calendar-edit-panels .editor-visual,.calendar-edit-panels textarea{min-height:95px;max-height:35vh}.calendar-edit-panels .editor-tools{padding:5px;gap:5px}.calendar-edit-panels .editor-tools button{font-size:12px;padding:4px 7px}.calendar-preview .panel h3{display:flex;justify-content:space-between;align-items:center;gap:8px}.calendar-preview .panel-edit{font-size:12px;line-height:1.15;padding:4px 7px;background:#fff;color:#232563;border:1px solid currentColor;white-space:nowrap;font-weight:400!important}
 """
 
 SCRIPT = '''<script id="whole-day-windows">
@@ -28,7 +33,9 @@ document.addEventListener('click', event => {
     const dialog = document.getElementById(opener.dataset.editDay);
     if (!dialog || !dialog.showModal) return;
     event.preventDefault(); dialog.showModal();
-    dialog.querySelector('.editor-visual:not([hidden]),textarea:not([hidden])')?.focus();
+    const area = opener.dataset.editPanel ? dialog.querySelector('[data-editor-panel="' + opener.dataset.editPanel + '"]') : dialog;
+    const field = area?.querySelector('.editor-visual:not([hidden]),textarea:not([hidden])');
+    field?.focus(); field?.scrollIntoView({block:'nearest'});
   }
   const closer = event.target.closest('[data-close-day]');
   if (closer) {
@@ -40,9 +47,9 @@ document.addEventListener('click', event => {
 });
 document.querySelectorAll('.day-dialog').forEach(dialog => {
   dialog.addEventListener('input', () => { dialog.dataset.changed = '1'; });
-  dialog.querySelector('.editor-tools').addEventListener('click', e => {
+  dialog.querySelectorAll('.editor-tools').forEach(tools => tools.addEventListener('click', e => {
     if (['color','bold','clear'].includes(e.target.closest('button')?.dataset.action)) dialog.dataset.changed = '1';
-  });
+  }));
   dialog.addEventListener('cancel', e => {
     if (dialog.dataset.changed && !confirm('Niet-opgeslagen wijzigingen verwerpen?')) e.preventDefault();
   });
@@ -85,16 +92,25 @@ def register_day_editor(s):
         weekdays = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag']
         return weekdays[day.weekday()] + ' ' + day.strftime('%d/%m/%Y')
 
-    def form(date, token, rich, modal=False, error='', conflict=False):
+    def form(date, token, rich, modal=False, error='', conflict=False, sections=None):
         close = ' data-close-day' if modal else ''
         message = f'<p class="day-error" role="alert">{s.esc(error)}</p>' if error else ''
-        fields = s.editor('body_html', rich, 'Alle activiteiten, vervangingen en agenda’s van deze dag',
-                          required=True, limit=100000, field_id='day-' + date)
+        sections=sections or {key:[] for key in PANEL_LABELS}
+        placeholders={'absence':'DAG: naam afwezig','activities':'9u30: L3 - activiteit (plaats)','practical':'Afspraak of taak','meeting':'15u30: overleg\n* agendapunt','stage':'Naam, klasgroep en eventueel uren'}
+        def field(key):
+            value='<br/>'.join(item['rich'] for item in sections.get(key,[]))
+            return (f'<section class="panel {key}" id="panel-{date}-{key}" data-editor-panel="{key}"><h3>{PANEL_LABELS[key]}</h3>'
+                    +s.editor('body_'+key,value,'Tekst en links',limit=100000,field_id=date+'-'+key,placeholder=placeholders[key])+'</section>')
+        # Kept hidden for older clients that still submit the original whole-day field.
+        fields=f'<textarea name="body_html" hidden>{s.esc(rich)}</textarea><input type="hidden" name="sections_present" value="1">'
+        fields+='<div class="calendar-edit-panels">'+field('absence')+'<div class="day-columns"><div class="day-main">'
+        fields+=''.join(field(key) for key in ('activities','practical','meeting'))
+        fields+='</div><aside class="day-stages">'+field('stage')+'</aside></div></div>'
         action = (f'<a class="btn" href="/kalender-dag/{date}">Dag opnieuw openen</a>' if conflict else
-                  '<button>Hele dag opslaan</button>')
+                  '<button>Wijzigingen opslaan</button>')
         return (f'<form class="day-form" method="post" action="/kalender-dag/{date}">'
                 f'<h2 id="day-title-{date}">{label(date)} bewerken</h2>'
-                '<p class="muted">Bewerk alles samen. Je kunt regels samenvoegen, toevoegen of weghalen.</p>'
+                '<p class="muted">Bewerk de tekst in het juiste vak. Zet elke activiteit op een eigen regel. Voor een hele dag schrijf je DAG:. Je kunt een regel naar een ander vak verplaatsen door hem daar te plakken.</p>'
                 + message + f'<input type="hidden" name="version" value="{s.esc(token, quote=True)}">'
                 + fields + f'<p class="day-actions">{action} <a class="btn alt" href="/kalender-wijzigen"{close}>Annuleren</a></p></form>')
 
@@ -126,7 +142,8 @@ def register_day_editor(s):
             p = min(max(1, p), max(1, (len(days) + 19) // 20))
             start = (p - 1) * 20
             visible = days[start:start + 20]
-            cards = render_calendar(s,hide_past=False,dates=[d[0] for d in visible],cards_only=True,connection=con)
+            data = render_calendar(s,hide_past=False,dates=[d[0] for d in visible],cards_only=True,connection=con,editor_data=True)
+            cards,sections=data['cards'],data['sections']
             focuses = {d[0][:7]:focus_state(con,d[0][:7])[0] for d in visible}
         finally:
             con.close()
@@ -161,7 +178,8 @@ def register_day_editor(s):
             article['class'].append('day-card')
             heading = card.select_one('.day-header')
             heading['class'].append('day-heading')
-            heading.select_one(':scope > span').decompose()
+            badge=heading.select_one(':scope > span')
+            if badge:badge.decompose()
             actions = BeautifulSoup(
                 '<div class="day-heading-actions">'
                 f'<a class="btn" href="/kalender-dag/{ds}" data-edit-day="{ident}">Bewerken</a>'
@@ -170,9 +188,15 @@ def register_day_editor(s):
                 f'<button class="danger" aria-label="Dag {label(ds)} wissen">Dag wissen</button></form></div>','html.parser')
             heading.append(actions.div)
             card.select_one('.calendar-body')['class'].append('day-preview')
+            for key in PANEL_LABELS:
+                panel=card.select_one('.panel.'+key)
+                if panel:
+                    edit=card.new_tag('a',href='/kalender-dag/'+ds+'#panel-'+ds+'-'+key,attrs={'class':'btn panel-edit','data-edit-day':ident,'data-edit-panel':key})
+                    edit.string='Wijzigen'
+                    panel.h3.append(edit)
             body+=str(article)
             dialogs.append(f'<dialog class="day-dialog" id="{ident}" aria-labelledby="day-title-{ds}">'
-                           + form(ds, token, rich, modal=True) + '</dialog>')
+                           + form(ds, token, rich, modal=True,sections=sections.get(ds)) + '</dialog>')
         if month is not None:body+='</section>'
         if not days:
             body += '<p>Geen dagen gevonden. Probeer een andere datum of zoektekst.</p>'
@@ -202,13 +226,21 @@ def register_day_editor(s):
         try:
             con.execute('BEGIN')
             _, token, rich = records(con, date)
+            sections=render_calendar(s,hide_past=False,dates=[date],cards_only=True,connection=con,editor_data=True)['sections'].get(date)
         finally:
             con.close()
-        return HTMLResponse(document('Dag bewerken', '<div class="card">' + form(date, token, rich) + '</div>'))
+        return HTMLResponse(document('Dag bewerken', '<div class="card">' + form(date, token, rich,sections=sections) + '</div>'))
 
     @s.app.post('/kalender-dag/{date}')
-    def save_day(date: str, version: str = Form(...), body_html: str = Form('')):
+    async def save_day(date: str, request: Request, version: str = Form(...), body_html: str = Form(''),sections_present: str = Form('')):
         s.valid_date(date)
+        if sections_present=='1':
+            posted=await request.form()
+            values={key:posted.get('body_'+key) if 'body_'+key in posted else None for key in PANEL_LABELS}
+            def error_page(date,token,values,error,status,conflict=False):
+                sections={key:[{'rich':value[:100000]}] for key,value in values.items()}
+                return HTMLResponse(document('Dag bewerken','<div class="card">'+form(date,token,'',error=error,conflict=conflict,sections=sections)+'</div>'),status_code=status)
+            return save_sections(s,date,version,values,error_page,signature)
         rich = s.without_bold(s.clean_html(body_html))
         if len(body_html) > 100000 or len(rich) > 100000 or not s.plain(rich):
             return HTMLResponse(document('Dag bewerken', '<div class="card">' + form(

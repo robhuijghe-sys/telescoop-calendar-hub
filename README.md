@@ -8,7 +8,7 @@ De migratie voegt uitsluitend `activity_type` en `whole_day` aan `editor_lines` 
 
 ## Bewerken met dezelfde dagindeling
 
-`/kalender-wijzigen` toont dezelfde dagvakken, klasnadruk, maandgradiënten en regelafstand als de Smartschoolkalender. Het overzicht en de kalender gebruiken dezelfde renderer. Dagversies en de zichtbare kaarten worden uit dezelfde databaselezing opgebouwd. Zoeken toont de volledige dag; bestaande dagvensters bewaren tekst, links, types en volledige-dagkeuzes bij opslaan. De oude voorstellenpagina en zijn navigatieknop zijn verwijderd.
+`/kalender-wijzigen` toont dezelfde dagvakken, klasnadruk, maandgradiënten en regelafstand als de Smartschoolkalender. Het overzicht en de kalender gebruiken dezelfde renderer. Dagversies en de zichtbare kaarten worden uit dezelfde databaselezing opgebouwd. Zoeken toont de volledige dag; de dagvensters bevatten vijf aparte tekstvakken. Een knop Wijzigen bij elk gevuld vak opent meteen het betreffende tekstvak. Het gekozen vak bepaalt waar nieuwe of verplaatste regels terechtkomen; ongemoeid gelaten vakken behouden hun records. Ongewijzigde gestructureerde activiteiten behouden hun uren en metadata. De opslag blijft transactioneel en weigert verouderde dagversies. De oude voorstellenpagina en zijn navigatieknop zijn verwijderd.
 
 Via Maandfocus wijzigen kan de focusregel van iedere getoonde maand worden aangepast. `/kalender-maandfocus/{YYYY-MM}` bewaart een geversioneerde override in de bestaande settings. Gelijktijdige wijzigingen worden geweigerd met HTTP 409 en oorspronkelijke teksten blijven in het auditlog bewaard.
 

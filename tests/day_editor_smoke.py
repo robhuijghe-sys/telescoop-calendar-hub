@@ -41,9 +41,10 @@ with TestClient(app) as client:
     listing = BeautifulSoup(client.get('/kalender-wijzigen').text, 'html.parser')
     assert len(listing.select('.day-card')) == 2
     assert len(listing.select('dialog')) == 2
-    assert len(listing.select('[data-edit-day]')) == 2
+    assert len(listing.select('.day-heading-actions [data-edit-day]')) == 2
     assert not listing.select('a[href^="/kalender-regel/"]')
-    assert len(listing.select('dialog textarea')) == 2
+    assert len(listing.select('dialog textarea[name=body_html]')) == 2
+    assert len(listing.select('dialog [data-editor-panel]')) == 10
     assert listing.select_one('[data-edit-day]').get_text() == 'Bewerken'
     delete_forms = listing.select('.day-heading-actions form')
     assert len(delete_forms) == 2
@@ -67,7 +68,9 @@ with TestClient(app) as client:
     # The management overview uses the same day panels as the live calendar.
     for card in listing.select('.day-card'):
         live = calendar.select_one('[data-calendar-date="'+card['data-calendar-date']+'"]')
-        assert str(card.select_one('.calendar-body')).replace(' day-preview','') == str(live.select_one('.calendar-body'))
+        preview=BeautifulSoup(str(card.select_one('.calendar-body')),'html.parser')
+        for button in preview.select('.panel-edit'):button.decompose()
+        assert str(preview).replace(' day-preview','') == str(live.select_one('.calendar-body'))
         assert card.select_one('.day-header')['style'] == live.select_one('.day-header')['style']
     assert listing.select_one('.day-preview > .absence')
     assert not listing.select('a[href="/kalender-voorstellen"]')
