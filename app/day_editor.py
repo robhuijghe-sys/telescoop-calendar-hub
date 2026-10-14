@@ -26,6 +26,8 @@ CSS += """
 .calendar-edit-panels{padding:0;max-width:none}.calendar-edit-panels .panel h3{margin-bottom:8px}.calendar-edit-panels .html-editor{margin:0}.calendar-edit-panels .editor-visual,.calendar-edit-panels textarea{min-height:95px;max-height:35vh}.calendar-edit-panels .editor-tools{padding:5px;gap:5px}.calendar-edit-panels .editor-tools button{font-size:12px;padding:4px 7px}.calendar-preview .panel h3{display:flex;justify-content:space-between;align-items:center;gap:8px}.calendar-preview .panel-edit{font-size:12px;line-height:1.15;padding:4px 7px;background:#fff;color:#232563;border:1px solid currentColor;white-space:nowrap;font-weight:400!important}
 """
 
+CSS += '.day-form .editor-help{display:none}.day-form .html-editor>label{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap}'
+
 SCRIPT = '''<script id="whole-day-windows">
 document.addEventListener('click', event => {
   const opener = event.target.closest('[data-edit-day]');
@@ -100,7 +102,7 @@ def register_day_editor(s):
         def field(key):
             value='<br/>'.join(item['rich'] for item in sections.get(key,[]))
             return (f'<section class="panel {key}" id="panel-{date}-{key}" data-editor-panel="{key}"><h3>{PANEL_LABELS[key]}</h3>'
-                    +s.editor('body_'+key,value,'Tekst en links',limit=100000,field_id=date+'-'+key,placeholder=placeholders[key])+'</section>')
+                    +s.editor('body_'+key,value,PANEL_LABELS[key],limit=100000,field_id=date+'-'+key,placeholder=placeholders[key])+'</section>')
         # Kept hidden for older clients that still submit the original whole-day field.
         fields=f'<textarea name="body_html" hidden>{s.esc(rich)}</textarea><input type="hidden" name="sections_present" value="1">'
         fields+='<div class="calendar-edit-panels">'+field('absence')+'<div class="day-columns"><div class="day-main">'
