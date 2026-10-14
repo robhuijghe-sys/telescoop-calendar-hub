@@ -57,15 +57,12 @@ def render_calendar(s, hide_past=True):
         con.close()
     days = {e['date']:[] for e in layout.get('entries',[])}
     for row in records:
-        for fragment in s.split_lines(s.without_bold(s.clean_html(row['body_html']))):
-            days.setdefault(row['date_local'],[]).append(dict(rich=fragment, type=row['activity_type'],
-                whole_day=row['whole_day'], custom=row['custom_format'], description=False))
+        days.setdefault(row['date_local'],[]).append(dict(rich=s.without_bold(s.clean_html(row['body_html'])),type=row['activity_type'],
+            whole_day=row['whole_day'],custom=row['custom_format'],event=False))
     for event in events:
         ds = s.datetime.fromisoformat(event['start_at']).astimezone(s.core.TZ).date().isoformat()
-        for index,fragment in enumerate(s.split_lines(s.without_bold(s.clean_html(_event_line(event))))):
-            days.setdefault(ds,[]).append(dict(rich=fragment, type=category_for_row(event),
-                whole_day=event['all_day'] if index==0 else 0,
-                custom=bool(event['title_html'] or event['description_html']), description=index>0))
+        days.setdefault(ds,[]).append(dict(rich=s.without_bold(s.clean_html(_event_line(event))),type=category_for_row(event),
+            whole_day=event['all_day'],custom=bool(event['title_html'] or event['description_html']),event=True))
     today = s.datetime.now(s.core.TZ).date()
     school_end = (today.year if today.month < 8 else today.year+1, 8)
     months = {}
@@ -167,15 +164,24 @@ def render_calendar(s, hide_past=True):
                 soup=BeautifulSoup(fragment,'html.parser')
                 meeting=soup.select_one('.meeting-group,.overleg-group')
                 for node in soup.select('[data-card-index]'):
-                    item=dict(items[int(node['data-card-index'])])
-                    item['rich']=''.join(str(child) for child in node.contents)
-                    key=panel_for(item,bool(meeting),previous)
-                    item['group']=group_index
-                    item['meeting_class']=meeting['class'][0] if meeting else 'meeting-group'
-                    if key=='meeting' and AGENDA.match(s.plain(item['rich'])) and buckets['meeting']:
-                        item['group']=buckets['meeting'][-1]['group']
-                        item['meeting_class']=buckets['meeting'][-1]['meeting_class']
-                    buckets[key].append(item);previous=key
+                    source=items[int(node['data-card-index'])]
+                    # Sort a stored activity as one unit, then draw its lines.
+                    # This keeps its heading before instructions and times.
+                    for line_index,rich in enumerate(s.split_lines(''.join(str(child) for child in node.contents))):
+                        item=dict(source,rich=rich,description=source['event'] and line_index>0)
+                        if item['description']:item['whole_day']=0
+                        key=panel_for(item,bool(meeting),previous)
+                        item['group']=group_index
+                        item['meeting_class']=meeting['class'][0] if meeting else 'meeting-group'
+                        if key=='meeting' and AGENDA.match(s.plain(item['rich'])) and buckets['meeting']:
+                            item['group']=buckets['meeting'][-1]['group']
+                            item['meeting_class']=buckets['meeting'][-1]['meeting_class']
+                        buckets[key].append(item);previous=key
+            activities=buckets['activities']
+            heading=next((i for i,item in enumerate(activities) if re.fullmatch(r'digitale wolven\s*:?',s.plain(item['rich']),re.I)),None)
+            slot=next((i for i,item in enumerate(activities) if re.search(r'\b(?:Panda|Scratch|Wunderkind|Digitale wolven)\b',s.plain(item['rich']),re.I) and i!=heading),None)
+            if heading is not None and slot is not None and slot<heading:
+                activities.insert(slot,activities.pop(heading))
             day=s.datetime.fromisoformat(ds)
             label=WEEKDAYS[day.weekday()]+' '+str(day.day)+' '+MONTH_NAMES[month].lower()
             card=f'<article class="calendar-day" data-calendar-date="{ds}"><header class="day-header" style="{gradient}"><h2>{label}</h2><span>Dagoverzicht</span></header><div class="calendar-body">'

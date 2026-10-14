@@ -75,5 +75,12 @@ with TestClient(app) as c:
     assert rows_all()==before
     assert 'Kopieën klaarzetten' in document(c).select_one('.activities').get_text()
     assert c.post('/kalender-toevoegen',data=dict(date=day,category='unknown',lines='Ongeldige keuze')).status_code==400
+    # An imported activity heading remains before its timed instructions.
+    con=core.db()
+    con.execute('INSERT INTO editor_lines(date_local,body_html,title) VALUES(?,?,?)',
+        (day,'Voorleessessie<br/>11u45: einde lessen<br/>11u55: verplaatsing','Voorleessessie\n11u45: einde lessen\n11u55: verplaatsing'))
+    con.commit();con.close()
+    program=document(c).select_one('.activities').get_text()
+    assert program.index('Voorleessessie')<program.index('einde lessen')<program.index('verplaatsing')
 print('TCH_DAY_CARDS_SMOKE_TEST=PASS')
 temp.cleanup()
