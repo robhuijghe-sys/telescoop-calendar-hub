@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory() as temp:
         before = [tuple(row) for row in con.execute('SELECT * FROM editor_lines')]
         response = client.get('/smartschool-calendar')
         assert response.status_code == 200
-        assert '.meeting-group,.meeting-group *{color:#D31996!important;font-weight:400!important}' in response.text
+        assert '.meeting-group,.meeting-group *{color:#000000!important;font-weight:400!important}' in response.text
         soup = BeautifulSoup(response.text, 'html.parser')
         for selector in ('.calendar-body',):
             body = soup.select_one(selector)
@@ -68,10 +68,11 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'Wissel L2' in meetings[0].get_text()
             assert meetings[1].get_text().startswith('Vakgroep NED')
             assert 'Sofie vervangt' in meetings[1].get_text()
-            assert 'Stage Imane' in body.find_all(recursive=False)[-1].get_text()
+            assert 'Imane' in body.find_all(recursive=False)[-1].get_text()
             assert not any(m.find_parent(class_='replacement-line') for m in meetings)
             for row in rows:
-                assert body.get_text().count(BeautifulSoup(row, 'html.parser').get_text()) == 1
+                display = BeautifulSoup(row, 'html.parser').get_text().removeprefix('Stage ')
+                assert body.get_text().count(display) == 1
         assert [tuple(row) for row in con.execute('SELECT * FROM editor_lines')] == before
         con.close()
-print('OK: pink regular meetings last, chronological, linked replacements, both views, data preserved')
+print('OK: black regular meeting text, chronological, linked replacements, data preserved')

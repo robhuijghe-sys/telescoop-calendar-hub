@@ -31,9 +31,9 @@ class FixtureClock(RealDatetime):
 # Only rendering/cache clocks change; real edit timestamps still advance.
 editor.datetime = snapshot.datetime = FixtureClock
 
-def stored(query):
+def stored(query, parameters=()):
     con = core.db()
-    row = dict(con.execute(query).fetchone())
+    row = dict(con.execute(query, parameters).fetchone())
     con.close()
     return row
 
@@ -64,7 +64,8 @@ with TestClient(app) as client:
     doc = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
     for node in doc.select('[data-custom-format]'):
         assert not node.find_parent(class_='replacement-line')
-    assert '#912345' in str(doc) and 'onerror=' not in str(doc)
+    assert '#912345' not in str(doc) and 'onerror=' not in str(doc)
+    assert '#912345' in stored('SELECT * FROM editor_lines WHERE id=?', (original['id'].split(':')[-1],))['body_html']
     assert client.post('/kalender-regel/' + original['id'], data={'date':'2026-10-01','version':original['version'],'body_html':'verouderd'}).status_code == 409
 
     client.post('/public/create', data={'title':'Stage Imane','date':'2026-10-08','start_time':'08:30','end_time':'12:40','category':'stage'}, follow_redirects=False)
@@ -72,9 +73,11 @@ with TestClient(app) as client:
     response = client.post('/kalender-regel/' + event['id'], data={'date':'2026-10-08', 'version':event['version'], 'title_html':'Stage <span style="color:#994422">Imane</span>', 'description_html':'<span style="color:#1122aa">K0K1</span><br>Mentor', 'start_time':'08:30','end_time':'12:40','category':'stage'})
     assert response.status_code == 200, response.text
     doc = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
-    stage = next(n for n in doc.select('[data-custom-format]') if 'Stage Imane' in n.get_text())
-    assert stage.get_text().strip() == 'Stage Imane van 8u30 tot 12u40'
-    assert '#994422' in str(stage) and '#1122aa' in str(doc)
+    stage = next(n for n in doc.select('.stage-item[data-custom-format]') if 'Imane' in n.get_text())
+    assert stage.get_text().strip() == 'Imane van 8u30 tot 12u40'
+    assert '#994422' not in str(stage) and '#1122aa' not in str(doc)
+    saved_event = stored("SELECT * FROM events WHERE title='Stage Imane'")
+    assert '#994422' in saved_event['title_html'] and '#1122aa' in saved_event['description_html']
     page = client.get('/kalender-regel/' + event['id']).text
     assert 'name="title_html"' in page and 'name="description_html"' in page
 
@@ -115,14 +118,17 @@ with TestClient(app) as client:
         if category in ('stage','secretariaat'):
             assert 'font-weight:700' in saved['body_html']
         rendered = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
-        assert title.split(': ',1)[-1] in rendered.get_text() and 'color:' + expected in str(rendered)
+        display = title.removeprefix('Stage ') if category == 'stage' else title.split(': ',1)[-1]
+        assert display in rendered.get_text()
+        assert not any('color:' in n['style'] for n in rendered.select('.panel [style]'))
         assert not rendered.select('b,strong')
     from app.calendar_dynamic import infer_category
     assert infer_category('Secretariaat belt ouders zonder afspraak') == 'secretariaat'
     response = client.post('/kalender-toevoegen', data={'date':'2026-10-16','category':'secretariaat','structured':'1','lines_html':'<span style="color:#123456">Kopieën maken</span>'}, follow_redirects=False)
     assert response.status_code == 303
     rendered = client.get('/smartschool-calendar').text
-    assert '#123456' in rendered
+    assert '#123456' not in rendered
+    assert '#123456' in stored("SELECT * FROM editor_lines WHERE title='Kopieën maken'")['body_html']
     assert client.post('/kalender-toevoegen', data={'date':'2026-10-16','category':'uitstap','structured':'1','lines_html':'Onvolledige uitstap'}).status_code == 400
 
 print('TCH_COLOR_EDITOR_SMOKE_TEST=PASS')

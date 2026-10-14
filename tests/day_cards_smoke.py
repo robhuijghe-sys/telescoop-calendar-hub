@@ -47,7 +47,10 @@ with TestClient(app) as c:
     assert all(color in doc.select_one('.day-header')['style'] for color in colors)
     css=doc.select_one('style').get_text()
     assert 'grid-template-columns:128px' in css and 'white-space:nowrap' in css
-    assert '.panel.practical{border-color:#a2c647}' in css
+    assert '.panel.practical{border-color:#68991C}.practical h3{color:#68991C}' in css
+    assert '.panel.meeting{border-color:#D31996}.meeting h3{color:#D31996}' in css
+    assert '.item-text,.item-text *,.stage-item,.stage-item *,.stage-note,.stage-note *{color:#000000!important}' in css
+    assert not any('color:' in n['style'] for n in doc.select('.panel [style]'))
     assert 'border-bottom:1px solid #edf0f5' not in css
     assert not doc.select('.activities [style*="#F09009"]')
     assert not doc.select('b,strong')
@@ -82,5 +85,22 @@ with TestClient(app) as c:
     con.commit();con.close()
     program=document(c).select_one('.activities').get_text()
     assert program.index('Voorleessessie')<program.index('einde lessen')<program.index('verplaatsing')
+    # A day containing only stages keeps the right column, even with absences above.
+    stage_day=(datetime.now(core.TZ).date()+timedelta(days=2)).isoformat()
+    c.post('/kalender-toevoegen',data=dict(date=stage_day,category='stage',lines='Stage: Noor bij K2'))
+    doc=document(c)
+    card=doc.select_one('[data-calendar-date="'+stage_day+'"]')
+    columns=card.select_one('.day-columns')
+    assert columns.select_one(':scope > .day-main').get_text()==''
+    stage=columns.select_one(':scope > .day-stages > .stage')
+    assert stage.select_one('.stage-name').get_text()=='Noor'
+    assert 'bij K2' in stage.get_text() and 'Stage:' not in stage.get_text()
+    c.post('/kalender-toevoegen',data=dict(date=stage_day,category='waarschuwing',lines='VM: Alex afwezig'))
+    card=document(c).select_one('[data-calendar-date="'+stage_day+'"]')
+    body=card.select_one('.calendar-body')
+    assert body.select_one(':scope > .absence') is not None
+    assert body.find(recursive=False).get('class')==['panel','absence']
+    assert card.select_one('.day-columns > .day-stages > .stage') is not None
+    assert any(r['title']=='Stage: Noor bij K2' for r in rows_all())
 print('TCH_DAY_CARDS_SMOKE_TEST=PASS')
 temp.cleanup()

@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261014-day-cards'
+BUILD = 'railway-editor-20261014-black-text'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -352,14 +352,16 @@ def home(saved: int = 0, added: int = 0):
         ('uitstap', 'Uitstap / dagprogramma', 'Gebruik per uitstap: uur of dagdeel: klasgroep - uitstap (plaats).', 'VM: K3: plantentuin Meise', 'standaardtekst'),
         ('waarschuwing', 'Afwezigheid', 'Schrijf één afwezigheid per regel. Vervangingen mogen op aparte regels en blijven standaard zwart.', 'Lien afwezig', 'rood'),
         ('secretariaat', 'Praktische afspraken / secretariaat', 'Schrijf één afspraak of taak per regel. Een klasgroep of uur is niet verplicht.', 'Secretariaat belt ouders zonder afspraak', 'groen'),
-        ('stage', 'Stage', 'Schrijf één stage per regel, met de naam en eventueel klasgroep en uren.', 'Stage Imane K0K1 van 8u30 tot 12u40', 'lichtblauw'),
+        ('stage', 'Stages', 'Schrijf één stagiair per regel, met de naam en eventueel klasgroep en uren. Het woord Stage hoeft er niet bij.', 'Imane K0K1 van 8u30 tot 12u40', 'lichtblauw'),
         ('personeel', 'Overleg en agenda', 'Schrijf één overleg of agendapunt per regel, eventueel met het uur.', '15u30: teamvergadering', 'roze (#D31996)'),
         ('ouders', 'Ouders / oudercontact', 'Schrijf één ouderactiviteit per regel, eventueel met klasgroep en uur.', '16u00: oudercontact L1', 'groen'),
         ('algemeen', 'Algemeen', 'Schrijf één activiteit per regel, eventueel met klasgroep en uur.', 'Materiaal klaarleggen', 'donkergrijs'),
     ]
-    options = ''.join(f'<option value="{key}" data-color="{CATEGORY_COLORS[key][0] if key != "auto" else ""}" data-color-name="{color_name}" data-help="{esc(help_text, quote=True)}" data-placeholder="{esc(placeholder, quote=True)}">{label}</option>' for key, label, help_text, placeholder, color_name in types)
+    panel_labels = {'waarschuwing':'Afwezigheden en vervangingen', 'secretariaat':'Praktische afspraken', 'stage':'Stages', 'personeel':'Overleg en agenda'}
+    panel_colors = {'secretariaat':'#68991C', 'personeel':'#D31996'}
+    options = ''.join(f'<option value="{key}" data-color="{panel_colors.get(key, CATEGORY_COLORS[key][0]) if key != "auto" else ""}" data-panel="{panel_labels.get(key, "Dagprogramma") if key != "auto" else ""}" data-help="{esc(help_text, quote=True)}" data-placeholder="{esc(placeholder, quote=True)}">{label}</option>' for key, label, help_text, placeholder, color_name in types)
     body = '''<details class="card" open><summary>Toevoegen aan kalender</summary><p>Kies één datum en een type. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label for="activity-date">Datum</label><input id="activity-date" type="date" name="date" required>'''
-    body += f'<label for="activity-type">Type</label><select id="activity-type" name="category" data-calendar-type>{options}</select><p class="type-color" aria-live="polite"><span class="type-color-dot" aria-hidden="true"></span><span class="type-color-text">De kleur wordt automatisch per regel gekozen.</span></p><p id="activity-type-help">{types[0][2]}</p>'
+    body += f'<label for="activity-type">Type</label><select id="activity-type" name="category" data-calendar-type>{options}</select><p class="type-color" aria-live="polite"><span class="type-color-dot" aria-hidden="true"></span><span class="type-color-text">Het vak wordt automatisch per regel gekozen. De tekst blijft zwart.</span></p><p id="activity-type-help">{types[0][2]}</p>'
     body += '<label style="display:flex;align-items:center;gap:8px"><input style="width:auto" type="checkbox" name="whole_day" value="1">Hele dag (DAG)</label>'
     body += editor('lines_html', label='Activiteiten en vervangingen', required=True, placeholder='9u30: K3 - Uitstap (plantentuin Meise)')
     body += '<p><button>Toevoegen aan kalender</button></p></form></details>'
