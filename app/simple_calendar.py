@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261009-no-visible-blank-lines'
+BUILD = 'railway-editor-20261014-day-cards'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -179,6 +179,8 @@ def setup_editor():
     # Additive migration: old activities, identifiers and versions stay intact.
     for table, column, definition in (
         ('editor_lines', 'custom_format', 'INTEGER NOT NULL DEFAULT 0'),
+        ('editor_lines', 'activity_type', "TEXT NOT NULL DEFAULT 'auto'"),
+        ('editor_lines', 'whole_day', 'INTEGER NOT NULL DEFAULT 0'),
         ('editor_links', 'description_html', "TEXT NOT NULL DEFAULT ''"),
         ('events', 'title_html', "TEXT NOT NULL DEFAULT ''"),
         ('events', 'description_html', "TEXT NOT NULL DEFAULT ''"),
@@ -243,7 +245,7 @@ snapshot._top_links_html = links_html
 
 
 def page(title, body):
-    nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a></nav>'
+    nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-vervangen">Zoeken en vervangen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a><a class="btn alt" href="/kalender-voorstellen">Voorstellen dagoverzicht</a></nav>'
     return themed_document(original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js" defer></script></body>'))
 
 
@@ -329,7 +331,9 @@ def calendar(request: Request):
             con = core.db()
             hidden = {r[0] for r in con.execute('SELECT date_local FROM editor_days WHERE hidden=1')}
             con.close()
-            doc = snapshot.render_snapshot_calendar(hide_past=True, hidden_dates=hidden).replace('http-equiv="refresh" content="30"', f'http-equiv="refresh" content="{REFRESH_SECONDS}"')
+            from app.day_cards import render_calendar
+            import sys
+            doc = render_calendar(sys.modules[__name__], hide_past=True)
             doc = without_bold(doc).replace('</style>', FONT_CSS + '.wrap,.wrap *{font-weight:400!important}' + '</style>', 1)
             doc = doc.replace('</body>', MIDNIGHT_SCRIPT + '</body>')
             cache.update(key=key, doc=doc, etag='"' + hashlib.sha256(doc.encode()).hexdigest() + '"')
@@ -345,17 +349,18 @@ def home(saved: int = 0, added: int = 0):
     message = '<p class="ok">Opgeslagen. De kalender toont je wijziging bij de volgende opening; openstaande kalenders verversen binnen twee uur.</p>' if saved or added else ''
     types = [
         ('auto', 'Automatisch per regel', 'Gebruik per regel: uur: klas - activiteit (plaats). Ook vrije tekst wordt automatisch opgemaakt.', '9u30: K3 - Uitstap (plantentuin Meise)', ''),
-        ('uitstap', 'Uitstap', 'Gebruik per uitstap: uur of dagdeel: klasgroep - uitstap (plaats).', 'VM: K3: plantentuin Meise', 'oranje'),
+        ('uitstap', 'Uitstap / dagprogramma', 'Gebruik per uitstap: uur of dagdeel: klasgroep - uitstap (plaats).', 'VM: K3: plantentuin Meise', 'standaardtekst'),
         ('waarschuwing', 'Afwezigheid', 'Schrijf één afwezigheid per regel. Vervangingen mogen op aparte regels en blijven standaard zwart.', 'Lien afwezig', 'rood'),
-        ('secretariaat', 'Taak secretariaat', 'Schrijf één taak per regel. Een klasgroep of uur is niet verplicht.', 'Secretariaat belt ouders zonder afspraak', 'groen'),
+        ('secretariaat', 'Praktische afspraken / secretariaat', 'Schrijf één afspraak of taak per regel. Een klasgroep of uur is niet verplicht.', 'Secretariaat belt ouders zonder afspraak', 'groen'),
         ('stage', 'Stage', 'Schrijf één stage per regel, met de naam en eventueel klasgroep en uren.', 'Stage Imane K0K1 van 8u30 tot 12u40', 'lichtblauw'),
-        ('personeel', 'Personeel / overleg', 'Schrijf één activiteit of overleg per regel, eventueel met het uur.', '15u30: teamvergadering', 'roze (#D31996)'),
+        ('personeel', 'Overleg en agenda', 'Schrijf één overleg of agendapunt per regel, eventueel met het uur.', '15u30: teamvergadering', 'roze (#D31996)'),
         ('ouders', 'Ouders / oudercontact', 'Schrijf één ouderactiviteit per regel, eventueel met klasgroep en uur.', '16u00: oudercontact L1', 'groen'),
         ('algemeen', 'Algemeen', 'Schrijf één activiteit per regel, eventueel met klasgroep en uur.', 'Materiaal klaarleggen', 'donkergrijs'),
     ]
     options = ''.join(f'<option value="{key}" data-color="{CATEGORY_COLORS[key][0] if key != "auto" else ""}" data-color-name="{color_name}" data-help="{esc(help_text, quote=True)}" data-placeholder="{esc(placeholder, quote=True)}">{label}</option>' for key, label, help_text, placeholder, color_name in types)
     body = '''<details class="card" open><summary>Toevoegen aan kalender</summary><p>Kies één datum en een type. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label for="activity-date">Datum</label><input id="activity-date" type="date" name="date" required>'''
     body += f'<label for="activity-type">Type</label><select id="activity-type" name="category" data-calendar-type>{options}</select><p class="type-color" aria-live="polite"><span class="type-color-dot" aria-hidden="true"></span><span class="type-color-text">De kleur wordt automatisch per regel gekozen.</span></p><p id="activity-type-help">{types[0][2]}</p>'
+    body += '<label style="display:flex;align-items:center;gap:8px"><input style="width:auto" type="checkbox" name="whole_day" value="1">Hele dag (DAG)</label>'
     body += editor('lines_html', label='Activiteiten en vervangingen', required=True, placeholder='9u30: K3 - Uitstap (plantentuin Meise)')
     body += '<p><button>Toevoegen aan kalender</button></p></form></details>'
     return HTMLResponse(page('Activiteiten toevoegen', message + body))
@@ -375,10 +380,14 @@ def audit(con, action, data):
 
 
 @app.post('/kalender-toevoegen')
-def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Form("0"), category: str = Form("auto"), lines_html: str = Form('')):
+def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Form("0"), category: str = Form("auto"), lines_html: str = Form(''), whole_day: str = Form('0')):
     valid_date(date)
     # Direct callers of this route omit FastAPI's optional Form argument.
     lines_html = lines_html if isinstance(lines_html, str) else ''
+    whole_day = whole_day if isinstance(whole_day, str) else '0'
+    from app.day_cards import TYPE_PANELS
+    if category != 'auto' and category not in TYPE_PANELS:
+        raise HTTPException(400, 'Kies een geldig activiteitstype.')
     if len(lines_html) > 20000:
         raise HTTPException(400, 'De opgemaakte tekst is te lang.')
     rich_input = BeautifulSoup(clean_html(lines_html), 'html.parser')
@@ -420,7 +429,11 @@ def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Fo
         con.execute('DELETE FROM editor_days WHERE date_local=?', (date,))
         added = 0
         for index, line in enumerate(rows):
-            if con.execute('SELECT id FROM editor_lines WHERE deleted=0 AND date_local=? AND title=?', (date, line)).fetchone():
+            existing = con.execute('SELECT id,activity_type,whole_day FROM editor_lines WHERE deleted=0 AND date_local=? AND title=?', (date,line)).fetchone()
+            if existing:
+                if category!='auto' or whole_day=='1':
+                    if existing['activity_type']!=category or existing['whole_day']!=int(whole_day=='1'):
+                        con.execute('UPDATE editor_lines SET activity_type=?,whole_day=?,version=version+1 WHERE id=?',(category,int(whole_day=='1'),existing['id']))
                 continue
             color = CATEGORY_COLORS[infer_category(line, category) if category != 'auto' else ('uitstap' if re.match(r'^(?:VM|NM|hele dag|\d{2}:\d{2} tot \d{2}:\d{2}), ', line) else infer_category(line))][0]
             if is_replacement(line):
@@ -428,7 +441,7 @@ def add_lines(date: str = Form(...), lines: str = Form(''), structured: str = Fo
             weight = ';font-weight:700' if infer_category(line, category) in ('stage', 'secretariaat') else ''
             content = reshape_html(fragments[index], line) if fragments else esc(line)
             custom = int(bool(fragments and has_custom_color(fragments[index])))
-            con.execute('INSERT INTO editor_lines(date_local,body_html,title,custom_format) VALUES(?,?,?,?)', (date, f'<span style="color:{color}{weight}">{content}</span>', line, custom))
+            con.execute('INSERT INTO editor_lines(date_local,body_html,title,custom_format,activity_type,whole_day) VALUES(?,?,?,?,?,?)', (date, f'<span style="color:{color}{weight}">{content}</span>', line, custom, category, int(whole_day=='1')))
             added += 1
         audit(con, 'calendar.bulk_added', {'date': date, 'count': added})
         con.commit()
@@ -491,7 +504,7 @@ def outing_preview(prompt):
     else:
         moment = ''
     options = ''.join(f'<option value="{v}" {"selected" if v == moment else ""}>{label}</option>' for v,label in [('', 'Kies een dagdeel of uren'), ('VM','VM'), ('NM','NM'), ('hele dag','hele dag'), ('uren','Beginuur tot einduur')])
-    body = f'''<div class="card"><h2>Controleer de uitstap</h2><p>Notatie: uur tot uur (of VM/NM/hele dag), klas, locatie uitstap. Uitstappen krijgen automatisch oranje.</p><form method="post" action="/kalender-uitstap"><label>Datum</label><input name="date" type="date" value="{esc(parsed.get('date') or '', quote=True)}" required><label>Dagdeel of uren</label><select name="moment" required>{options}</select><label>Beginuur (bij uren)</label><input name="start" type="time" value="{esc(parsed.get('start_time') or '', quote=True)}"><label>Einduur (bij uren)</label><input name="end" type="time" value="{esc(parsed.get('end_time') or '', quote=True)}"><label>Klasgroep</label><input name="group" value="{esc(group, quote=True)}" required><label>Locatie uitstap</label><input name="location" value="{esc(location, quote=True)}" required><p><button>Uitstap toevoegen</button></p></form></div>'''
+    body = f'''<div class="card"><h2>Controleer de uitstap</h2><p>Notatie: uur tot uur (of VM/NM/DAG), klas, locatie uitstap. Uitstappen verschijnen in het dagprogramma.</p><form method="post" action="/kalender-uitstap"><label>Datum</label><input name="date" type="date" value="{esc(parsed.get('date') or '', quote=True)}" required><label>Dagdeel of uren</label><select name="moment" required>{options}</select><label>Beginuur (bij uren)</label><input name="start" type="time" value="{esc(parsed.get('start_time') or '', quote=True)}"><label>Einduur (bij uren)</label><input name="end" type="time" value="{esc(parsed.get('end_time') or '', quote=True)}"><label>Klasgroep</label><input name="group" value="{esc(group, quote=True)}" required><label>Locatie uitstap</label><input name="location" value="{esc(location, quote=True)}" required><p><button>Uitstap toevoegen</button></p></form></div>'''
     return HTMLResponse(page('Uitstap toevoegen', body))
 
 
@@ -574,6 +587,9 @@ def edit_row(key: str):
     if kind == 'basis':
         date, version = row['date_local'], str(row['version'])
         fields = editor('body_html', clean_html(row['body_html']), 'Tekst en links van deze regel', required=True)
+        choices=[('auto','Automatisch'),('algemeen','Dagprogramma'),('uitstap','Uitstap / dagprogramma'),('ouders','Ouders / dagprogramma'),('waarschuwing','Afwezigheden en vervangingen'),('stage','Stages'),('secretariaat','Praktische afspraken'),('personeel','Overleg en agenda')]
+        fields += '<label>Type</label><select name="category">'+''.join(f'<option value="{k}" {"selected" if row["activity_type"]==k else ""}>{v}</option>' for k,v in choices)+'</select>'
+        fields += f'<input type="hidden" name="whole_day_present" value="1"><label style="display:flex;align-items:center;gap:8px"><input style="width:auto" type="checkbox" name="whole_day" value="1" {"checked" if row["whole_day"] else ""}>Hele dag (DAG)</label>'
     else:
         local = datetime.fromisoformat(row['start_at']).astimezone(core.TZ)
         end = datetime.fromisoformat(row['end_at']).astimezone(core.TZ)
@@ -604,7 +620,12 @@ async def save_row(key: str, request: Request):
             rich = clean_html(str(form.get('body_html', '')))
             if not plain(rich) or len(rich) > 20000:
                 raise HTTPException(400, 'Vul een geldige kalendertekst in.')
-            con.execute('UPDATE editor_lines SET date_local=?,body_html=?,title=?,custom_format=?,version=version+1 WHERE id=?', (date, rich, plain(rich), int(has_custom_color(rich)), row['id']))
+            category = str(form.get('category',row['activity_type']))
+            from app.day_cards import TYPE_PANELS
+            if category!='auto' and category not in TYPE_PANELS:
+                raise HTTPException(400, 'Kies een geldig activiteitstype.')
+            whole_day=int(form.get('whole_day')=='1') if 'whole_day' in form or 'whole_day_present' in form else row['whole_day']
+            con.execute('UPDATE editor_lines SET date_local=?,body_html=?,title=?,custom_format=?,activity_type=?,whole_day=?,version=version+1 WHERE id=?', (date, rich, plain(rich), int(has_custom_color(rich)), category, whole_day, row['id']))
         else:
             title_html = clean_html(str(form.get('title_html', '')))
             description_html = clean_html(str(form.get('description_html', '')))
@@ -709,3 +730,7 @@ def delete_link(ident: int, version: int = Form(...)):
 from app.day_editor import register_day_editor
 import sys
 register_day_editor(sys.modules[__name__])
+from app.bulk_replace import register_bulk_replace
+from app.layout_proposals import register_layout_proposals
+register_bulk_replace(sys.modules[__name__])
+register_layout_proposals(sys.modules[__name__])

@@ -1,5 +1,19 @@
 # Telescoop Calendar Hub
 
+## Actuele dagkaarten (14 oktober 2026)
+
+De bestaande `/smartschool-calendar`-URL toont de volledige kalender als responsieve dagkaarten. Dagbalken gebruiken de bestaande maandgradiënten; alle vakken hebben een witte achtergrond. Afwezigheden en vervangingen staan bovenaan, het dagprogramma en praktische afspraken in de hoofdkolom, overleg met zijn agendapunten bij elkaar en stages in een aparte kolom. Op een smal scherm komen de vakken onder elkaar. Praktische afspraken hebben een groene rand; uitstappen hebben gewone tekst. De uurkolom is breed genoeg voor een volledig bereik op één regel en heeft geen scheidingslijnen tussen regels. Nascholingen zonder opgegeven dagdeel, expliciete volledige dagen en bosklassen voor een hele klas krijgen DAG.
+
+De migratie voegt uitsluitend `activity_type` en `whole_day` aan `editor_lines` toe. Bestaande tekst, record-ID's, verwijzingen en versies blijven behouden. Nieuwe toevoegingen bewaren de gekozen typecategorie, die bij het renderen voorrang krijgt op tekstherkenning. De optie Hele dag zet DAG in de tijdkolom. Bewerkingen van één regel, volledige dagen en batchvervangingen houden deze metadata bij. De oude regels met type `auto` worden op hun bestaande tekst ingedeeld. De kalender gebruikt één DOM voor desktop en mobiel, dezelfde dagelijkse verwijdering van oude dagen en dezelfde ETag-cache.
+
+## Zoeken en vervangen (14 oktober 2026)
+
+`/kalender-vervangen` vervangt een stukje tekst of een volledige zichtbare regel, vanaf vandaag, in de hele kalender of in een gekozen periode. De voorafgaande vergelijking toont iedere gewijzigde regel met datum, oude tekst en nieuwe tekst; tot bevestiging blijven de gegevens onaangeroerd. Hoofdlettergevoelig zoeken is optioneel. Kleuren, links en niet-gematchte regels blijven behouden.
+
+Een ondertekend voorbeeld blijft een uur geldig. De applicatie berekent de volledige verzameling wijzigingen opnieuw binnen één SQLite-schrijftransactie. Gewijzigde, verwijderde of nieuwe treffers laten de hele bewerking stoppen met HTTP 409. Het auditlog bewaart de originele records. De succespagina biedt een uur lang ongedaan maken; dit herstelt de hele bewerking alleen als alle betrokken records nog overeenkomen. Zoals bij de bestaande dagbewerking wordt een gewijzigde zichtbare tekst van een gestructureerde activiteit opgeslagen als kalenderregels; het oorspronkelijke event met zijn metadata blijft verborgen bewaard. Ongewijzigde gestructureerde activiteiten blijven intact.
+
+`/kalender-voorstellen` toont twee uitsluitend visuele voorstellen: de bestaande kalender met witruimte tussen activiteitengroepen en een dagkaart met vaste blokken en een tijdkolom. Beide lezen dezelfde huidige kalenderdag uit de databank; zonder activiteiten vandaag wordt de eerstvolgende dag gekozen. Via de datumkeuze zijn andere dagen te vergelijken. Schoolgegevens worden niet gekopieerd naar de broncode. De Smartschoolweergave wordt hierdoor niet gewijzigd.
+
 ## Actuele publieke kalender (30 september 2026)
 
 De Railway-service start met `app.simple_calendar:app`. De oorspronkelijke SQLite-databank en JSON-kalender op `/data` blijven behouden. De eerste start bewaart een databasekopie en zet de bestaande kalenderregels transactioneel in bewerkbare regels om; latere starts importeren ze niet opnieuw. Bestaande toevoegingen uit `events` blijven beschikbaar.

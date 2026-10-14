@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory() as temp:
         assert response.status_code == 200
         assert '.meeting-group,.meeting-group *{color:#D31996!important;font-weight:400!important}' in response.text
         soup = BeautifulSoup(response.text, 'html.parser')
-        for selector in ('.desktop-calendar .event-cell', '.mobile-calendar .mobile-events'):
+        for selector in ('.calendar-body',):
             body = soup.select_one(selector)
             meetings = body.select('.meeting-group')
             assert len(meetings) == 4

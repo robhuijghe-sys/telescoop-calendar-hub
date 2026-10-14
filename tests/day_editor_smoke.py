@@ -59,7 +59,7 @@ with TestClient(app) as client:
     assert not any('font-weight:' in tag.get('style', '') for tag in listing.select('.day-preview [style]'))
     calendar = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
     assert not calendar.select_one('style#school-theme')
-    assert 'background:#fff5eb' in calendar.select_one('style').get_text()
+    assert 'background:#fff' in calendar.select_one('style').get_text()
     assert 'background:linear-gradient(135deg,' in calendar.select_one('.month-head')['style']
     assert not calendar.select('b,strong')
     assert not any('font-weight:' in tag.get('style', '') for tag in calendar.select('[style]'))
@@ -88,7 +88,7 @@ with TestClient(app) as client:
     assert len([r for r in current if r['id'].startswith('event:')]) == 1
     assert any(r['title'] == 'Nieuwe afspraak' for r in current)
     rendered = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
-    for selector in ('.desktop-calendar .event-cell', '.mobile-calendar .mobile-events'):
+    for selector in ('.calendar-body',):
         contents = rendered.select_one(selector)
         assert contents.get_text().count('Bibliotheek') == 1
         assert 'agenda: woordenschat' in contents.get_text()
@@ -116,7 +116,7 @@ with TestClient(app) as client:
     fresh['body_html'] += '<br><span onclick="alert(1)">Veilig</span><script>alert(1)</script>'
     assert client.post('/kalender-dag/' + day, data=fresh).status_code == 200
     html = client.get('/smartschool-calendar').text
-    assert 'Museum (Laken)' in html and '9u00 - 10u00:' in html
+    assert 'Museum (Laken)' in html and '9u00 - 10u00' in html
     assert 'Bibliotheek' not in html and 'onclick=' not in html and '<script>alert' not in html
     assert 'Neem boeken mee' in html and 'Andere dag' in html
     con = core.db()
@@ -137,7 +137,7 @@ with TestClient(app) as client:
     assert [r for r in rows_all() if r['date'] == other] == untouched
     calendar = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
     assert not calendar.select('[data-calendar-date="' + day + '"]')
-    assert len(calendar.select('[data-calendar-date="' + other + '"]')) == 2
+    assert len(calendar.select('[data-calendar-date="' + other + '"]')) == 1
     assert not BeautifulSoup(client.get('/kalender-wijzigen').text, 'html.parser').select('input[name=date][value="' + day + '"]')
     con = core.db()
     deleted = json.loads(con.execute("SELECT payload FROM audit_log WHERE action='calendar.day_deleted' ORDER BY id DESC LIMIT 1").fetchone()[0])

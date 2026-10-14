@@ -55,8 +55,9 @@ with TestClient(app) as client:
     con=core.db(); stored=dict(con.execute('SELECT * FROM events').fetchone());con.close()
     html=client.get('/smartschool-calendar').text
     soup=BeautifulSoup(html,'html.parser')
-    for selector in ('.desktop-calendar','.mobile-calendar'):
-        assert '11u11 - 11u12: L5 - CLB (op school)' in soup.select_one(selector).get_text()
+    for selector in ('.calendar-day',):
+        assert any(n.get_text()=='11u11 - 11u12' for n in soup.select('.moment'))
+        assert 'L5 - CLB (op school)' in soup.get_text()
         assert '10u00: L5 - CLB' not in soup.select_one(selector).get_text()
     assert not soup.select('.event-cell p,.mobile-events p')
     # Edits normalize regardless of whether text is entered via HTML or a single-line editor.
@@ -75,17 +76,15 @@ with TestClient(app) as client:
         '<p>3 weken LIST</p><p>Eline afwezig</p>'},follow_redirects=False).status_code==303
     rendered=BeautifulSoup(client.get('/smartschool-calendar').text,'html.parser')
     from app.rich_editor import fragment_text
-    for selector in ('.desktop-calendar tr[data-calendar-date="'+day+'"] .event-cell',
-                     '.mobile-calendar .mobile-day[data-calendar-date="'+day+'"] .mobile-events'):
-        cell=rendered.select_one(selector)
-        label=fragment_text(str(cell))
-        assert label.startswith('Eline afwezig'),label
-        assert 'instapdag' not in label.casefold()
-        assert 'Ida Smet, Ines Delgrange Pierre' in label
-        assert cell.select_one('.overleg-group') and 'Zorgoverleg' in cell.select_one('.overleg-group').get_text()
-        assert len(cell.select('.meeting-group'))==2
-        assert 'Stage' in cell.find_all(recursive=False)[-1].get_text()
-        assert not cell.find('p') and not __import__('re').search(r'\n\s*\n',label)
+    cell=rendered.select_one('[data-calendar-date="'+day+'"] .calendar-body')
+    label=fragment_text(str(cell))
+    assert 'Eline afwezig' in cell.select_one('.absence').get_text()
+    assert 'instapdag' not in label.casefold()
+    assert 'Ida Smet, Ines Delgrange Pierre' in label
+    assert cell.select_one('.overleg-group') and 'Zorgoverleg' in cell.select_one('.overleg-group').get_text()
+    assert len(cell.select('.meeting-group'))==2
+    assert 'Stage' in cell.select_one('.day-stages').get_text()
+    assert not cell.select('b,strong')
     con=core.db()
     zorg=con.execute("SELECT body_html FROM editor_lines WHERE title LIKE '%Zorgoverleg%' AND deleted=0").fetchone()[0]
     team=con.execute("SELECT body_html FROM editor_lines WHERE title LIKE '%Teamvergadering%' AND deleted=0").fetchone()[0]

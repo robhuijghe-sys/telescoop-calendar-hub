@@ -23,7 +23,7 @@ CATEGORY_COLORS = {
     "personeel": ("#000000", "Personeel"),
     "stage": (STAGE_COLOR, "Stage"),
     "secretariaat": ("#a2c647", "Taak secretariaat"),
-    "uitstap": ("#F09009", "Uitstap / activiteit"),
+    "uitstap": ("#2F2926", "Uitstap / activiteit"),
     "waarschuwing": ("#D32F2F", "Afwezig / waarschuwing"),
     "algemeen": ("#2F2926", "Algemeen"),
 }
@@ -77,11 +77,11 @@ WARNING_WORDS = (
 
 
 def infer_category(text: str, explicit: str = "auto") -> str:
-    if is_replacement(text):
-        return "algemeen"
     explicit = CATEGORY_ALIASES.get((explicit or "auto").strip().lower(), "auto")
     if explicit != "auto":
         return explicit
+    if is_replacement(text):
+        return "algemeen"
     if is_stage(text):
         return "stage"
     t = " " + (text or "").lower() + " "
@@ -101,9 +101,11 @@ def infer_category(text: str, explicit: str = "auto") -> str:
 def category_for_row(row) -> str:
     # Existing stage events may have been stored as general activities. Apply
     # the same stage style without migrating or rewriting their data.
+    explicit = row["category"] if "category" in row.keys() else "auto"
+    if explicit not in ('auto','algemeen',''):
+        return explicit
     if is_stage(row["title"]):
         return "stage"
-    explicit = row["category"] if "category" in row.keys() else "auto"
     text = " ".join(str(row[k] or "") for k in ("title", "description", "source_prompt") if k in row.keys())
     return infer_category(text, explicit)
 

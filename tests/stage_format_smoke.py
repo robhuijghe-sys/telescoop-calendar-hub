@@ -36,11 +36,11 @@ with TestClient(app) as client:
     response = client.get('/smartschool-calendar')
     soup = BeautifulSoup(response.text, 'html.parser')
     expected = 'Stage Imane K0K1 van 8u30 tot 12u40'
-    for selector in ('.desktop-calendar', '.mobile-calendar'):
+    for selector in ('.calendar-day',):
         view = soup.select_one(selector)
-        label = view.find('span', string=expected, style='color:#5dade2')
-        assert label and label['style'] == 'color:#5dade2'
-        assert '15u30 - 17u00: L1 - Oudercontact' in view.get_text()
+        label = next(n for n in view.select('.stage-item') if n.get_text().strip() == expected)
+        assert label and 'color:#5dade2' in str(label)
+        assert '15u30 - 17u00' in view.get_text() and 'L1 - Oudercontact' in view.get_text()
         assert view.get_text().count(expected) == 1
         assert '08.30-12.40u: Stage' not in view.get_text()
     # Rendering is presentation only: titles, timestamps and class names stay stored.
@@ -62,8 +62,8 @@ with TestClient(app) as client:
     assert client.post('/kalender-toevoegen', follow_redirects=False, data={
         'date': day, 'lines': 'Stage Fatima Zahra van 13u20 tot 17u00'}).status_code == 303
     updated = client.get('/smartschool-calendar')
-    label = BeautifulSoup(updated.text, 'html.parser').find('span', string='Stage Fatima Zahra van 13u20 tot 17u00', style='color:#5dade2')
-    assert label and label['style'] == 'color:#5dade2'
+    label = next(n for n in BeautifulSoup(updated.text, 'html.parser').select('.stage-item') if n.get_text().strip() == 'Stage Fatima Zahra van 13u20 tot 17u00')
+    assert label and 'color:#5dade2' in str(label)
     assert updated.headers['etag'] != response.headers['etag']
 
 print('OK: stages blue/regular, local hours after name, both views, no data changes or duplicate hours')

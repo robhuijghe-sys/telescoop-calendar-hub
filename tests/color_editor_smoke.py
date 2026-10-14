@@ -73,7 +73,7 @@ with TestClient(app) as client:
     assert response.status_code == 200, response.text
     doc = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
     stage = next(n for n in doc.select('[data-custom-format]') if 'Stage Imane' in n.get_text())
-    assert stage.get_text() == 'Stage Imane van 8u30 tot 12u40'
+    assert stage.get_text().strip() == 'Stage Imane van 8u30 tot 12u40'
     assert '#994422' in str(stage) and '#1122aa' in str(doc)
     page = client.get('/kalender-regel/' + event['id']).text
     assert 'name="title_html"' in page and 'name="description_html"' in page
@@ -98,7 +98,7 @@ with TestClient(app) as client:
     type_values = {o['value'] for o in home_doc.select('select[name=category] option')}
     assert {'auto', 'uitstap', 'waarschuwing', 'secretariaat', 'stage', 'personeel', 'ouders', 'algemeen'} == type_values
     for category, text, expected, title in [
-        ('uitstap', 'NM: L4: museum', '#F09009', 'NM: L4 - Uitstap (museum)'),
+        ('uitstap', 'NM: L4: museum', '#2F2926', 'NM: L4 - Uitstap (museum)'),
         ('waarschuwing', 'Lien afwezig', '#D32F2F', 'Lien afwezig'),
         ('secretariaat', 'Ouders bellen zonder afspraak', '#a2c647', 'Ouders bellen zonder afspraak'),
         ('stage', 'Stage Noor van 8u30 tot 12u40', '#5dade2', 'Stage Noor van 8u30 tot 12u40'),
@@ -115,7 +115,7 @@ with TestClient(app) as client:
         if category in ('stage','secretariaat'):
             assert 'font-weight:700' in saved['body_html']
         rendered = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
-        assert title in rendered.get_text() and 'color:' + expected in str(rendered)
+        assert title.split(': ',1)[-1] in rendered.get_text() and 'color:' + expected in str(rendered)
         assert not rendered.select('b,strong')
     from app.calendar_dynamic import infer_category
     assert infer_category('Secretariaat belt ouders zonder afspraak') == 'secretariaat'

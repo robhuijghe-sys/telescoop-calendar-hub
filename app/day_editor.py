@@ -132,6 +132,7 @@ def register_day_editor(s):
                  f'<label>Zoeken op tekst of datum</label><input name="q" value="{s.esc(q, quote=True)}">'
                  f'<label>Datum (optioneel)</label><input type="date" name="date" value="{s.esc(date, quote=True)}">'
                  '<p><button>Zoeken</button> <a href="/kalender-wijzigen">Alles tonen</a></p></form>'
+                 f'<p><a class="btn alt" href="/kalender-vervangen?{s.esc(urlencode({"q": q}), quote=True)}">Terugkerende tekst vervangen</a></p>'
                  f'<p class="muted">{len(days)} {"dag" if len(days) == 1 else "dagen"} · {sum(d[3] for d in days)} kalenderregels</p>')
         dialogs = []
         for ds, token, rich, count in days[start:start + 20]:
@@ -211,9 +212,14 @@ def register_day_editor(s):
                     continue
                 con.execute("UPDATE events SET visible_in_embed=0,status='deleted',updated_at=? WHERE id=?", (s.core.now_iso(), event['id']))
             con.execute('DELETE FROM editor_days WHERE date_local=?', (date,))
-            for fragment in fragments:
-                con.execute('INSERT INTO editor_lines(date_local,body_html,title,custom_format) VALUES(?,?,?,?)',
-                            (date, fragment, s.plain(fragment), int(s.has_custom_color(fragment))))
+            from app.day_cards import retain_metadata
+            original = list(before['basis'])
+            for event in before['events']:
+                original.append(dict(body_html=_event_line(event),activity_type=event['category'],whole_day=event['all_day']))
+            metadata = retain_metadata(s,original,fragments)
+            for fragment,(category,whole_day) in zip(fragments,metadata):
+                con.execute('INSERT INTO editor_lines(date_local,body_html,title,custom_format,activity_type,whole_day) VALUES(?,?,?,?,?,?)',
+                            (date, fragment, s.plain(fragment), int(s.has_custom_color(fragment)),category,whole_day))
             # Retain all original records, including event metadata, for recovery.
             s.audit(con, 'calendar.day_changed', {'date': date, 'before': before, 'body_html': rich})
             con.commit()

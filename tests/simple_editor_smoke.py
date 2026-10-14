@@ -124,7 +124,7 @@ with TestClient(app) as client:
     assert any(r['title']=='9u00 - 12u00: L2 - Uitstap (Meise)' for r in rows_all())
     assert client.post('/kalender-uitstap', data={'date':'2027-06-04','moment':'uren','group':'L2','location':'Meise','start':'09:00','end':''}).status_code == 400
     con=core.db()
-    assert '#F09009' in con.execute("SELECT body_html FROM editor_lines WHERE title='VM: L2 - Uitstap (plantentuin Meise)'").fetchone()[0]
+    assert '#2F2926' in con.execute("SELECT body_html FROM editor_lines WHERE title='VM: L2 - Uitstap (plantentuin Meise)'").fetchone()[0]
     con.close()
 
 print('TCH_SIMPLE_EDITOR_SMOKE_TEST=PASS')
