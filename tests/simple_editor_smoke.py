@@ -65,7 +65,9 @@ with TestClient(app) as client:
     row = next(r for r in rows_all() if r['title'] == 'Lien afwezig')
     assert client.post('/kalender-verwijderen/' + row['id'], data={'version': row['version']}).status_code == 200
     assert 'Lien afwezig' not in client.get('/smartschool-calendar').text
-    assert 'L1 - Veronica begeleidt' in client.get('/smartschool-calendar').text
+    rendered = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
+    assert 'L1 - Veronica begeleidt' in rendered.get_text()
+    assert any(label.get_text() == 'L1' for label in rendered.select('.activities .class-label'))
     setup_editor()
     assert len(rows_all()) == 4  # Restart neither reimports nor restores deleted rows.
     # Existing natural-language creation remains public and editable.
