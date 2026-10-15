@@ -90,7 +90,7 @@ def retain_metadata(s, originals, fragments):
     return result
 
 
-def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=None, editor_data=False):
+def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=None, editor_data=False, visible_from=None):
     selected = set(dates) if dates is not None else None
     owned = connection is None
     con = connection if connection is not None else s.core.db()
@@ -114,12 +114,13 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
         days.setdefault(ds,[]).append(dict(rich=s.without_bold(s.clean_html(_event_line(event))),type=category_for_row(event),
             whole_day=event['all_day'],custom=bool(event['title_html'] or event['description_html']),event=True,record=('event',event['id'])))
     today = s.datetime.now(s.core.TZ).date()
+    visible_from = visible_from if visible_from is not None else s.calendar_start_date()
     school_end = (today.year if today.month < 8 else today.year+1, 8)
     months = {}
     for ds,items in sorted(days.items()):
         day = s.datetime.fromisoformat(ds).date()
         if selected is not None and ds not in selected:continue
-        if ds in hidden or (hide_past and day<today) or (selected is None and ((day.year,day.month)<(today.year,today.month) or (day.year,day.month)>school_end)):
+        if ds in hidden or (hide_past and day<visible_from) or (selected is None and ((day.year,day.month)<(today.year,today.month) or (day.year,day.month)>school_end)):
             continue
         months.setdefault((day.year,day.month),[]).append((ds,items))
 

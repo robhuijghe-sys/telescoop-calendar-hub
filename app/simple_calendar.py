@@ -9,7 +9,7 @@ import re
 import sqlite3
 import threading
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
@@ -29,7 +29,7 @@ from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold, flatten_lists
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261015-bullets'
+BUILD = 'railway-editor-20261015-schoolday-rollover'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -48,20 +48,35 @@ FONT_CSS = '''@font-face{font-family:Roboto;font-style:normal;font-weight:400;fo
 FONT_CSS += '.base-content,.event-line,.quick a{white-space:pre-wrap}.base-content p,.base-content div{margin:0}'
 
 
-MIDNIGHT_SCRIPT = """<script id="calendar-midnight">
+# Minutes after Belgian midnight, indexed Monday=0 through Sunday=6.
+ROLLOVER_MINUTES = {0: 915, 1: 915, 2: 740, 3: 915, 4: 915}
+
+
+def calendar_start_date(now=None):
+    local = (now if now is not None else datetime.now(core.TZ)).astimezone(core.TZ)
+    cutoff = ROLLOVER_MINUTES.get(local.weekday())
+    advance = cutoff is not None and local.hour * 60 + local.minute >= cutoff
+    return local.date() + timedelta(days=int(advance))
+
+
+ROLLOVER_SCRIPT = """<script id="calendar-rollover">
 (() => {
-  const formatter = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit'});
+  const cutoffs = __ROLLOVER_MINUTES__;
+  const formatter = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
   function prune() {
     const parts = Object.fromEntries(formatter.formatToParts(new Date()).map(p => [p.type,p.value]));
-    const today = parts.year + '-' + parts.month + '-' + parts.day;
-    document.querySelectorAll('[data-calendar-date]').forEach(el => { if(el.dataset.calendarDate < today) el.remove(); });
+    const date = new Date(Date.UTC(Number(parts.year), Number(parts.month)-1, Number(parts.day)));
+    const cutoff = cutoffs[(date.getUTCDay()+6)%7];
+    if (cutoff !== undefined && Number(parts.hour)*60 + Number(parts.minute) >= cutoff) date.setUTCDate(date.getUTCDate()+1);
+    const startDate = date.toISOString().slice(0,10);
+    document.querySelectorAll('[data-calendar-date]').forEach(el => { if(el.dataset.calendarDate < startDate) el.remove(); });
     document.querySelectorAll('.month-card').forEach(el => { if(!el.querySelector('[data-calendar-date]')) el.remove(); });
   }
   function tick() { prune(); setTimeout(tick,60000 - Date.now()%60000); }
   document.addEventListener('visibilitychange',prune);
   tick();
 })();
-</script>"""
+</script>""".replace('__ROLLOVER_MINUTES__', json.dumps(ROLLOVER_MINUTES))
 
 
 def safe_url(value):
@@ -326,7 +341,9 @@ def calendar(request: Request):
     con = core.db()
     revision = con.execute('SELECT revision FROM editor_state WHERE id=1').fetchone()[0]
     con.close()
-    key = (revision, datetime.now(core.TZ).date().isoformat())
+    now = datetime.now(core.TZ)
+    visible_from = calendar_start_date(now)
+    key = (revision, now.date().isoformat(), visible_from.isoformat())
     with lock:
         if cache.get('key') != key:
             con = core.db()
@@ -334,9 +351,9 @@ def calendar(request: Request):
             con.close()
             from app.day_cards import render_calendar
             import sys
-            doc = render_calendar(sys.modules[__name__], hide_past=True)
+            doc = render_calendar(sys.modules[__name__], hide_past=True, visible_from=visible_from)
             doc = without_bold(doc).replace('</style>', FONT_CSS + '.wrap,.wrap *{font-weight:400!important}' + '</style>', 1)
-            doc = doc.replace('</body>', MIDNIGHT_SCRIPT + '</body>')
+            doc = doc.replace('</body>', ROLLOVER_SCRIPT + '</body>')
             cache.update(key=key, doc=doc, etag='"' + hashlib.sha256(doc.encode()).hexdigest() + '"')
         doc, etag = cache['doc'], cache['etag']
     headers = {'ETag': etag, 'Cache-Control': 'no-cache, must-revalidate', 'X-Calendar-Version': BUILD}
@@ -542,7 +559,7 @@ def edit_list(q: str = '', date: str = '', p: int = 1, saved: int = 0):
     p = min(max(1, p), max(1, (len(rows) + 59) // 60))
     start = (p - 1) * 60
     body = '<p class="ok">Wijziging opgeslagen.</p>' if saved else ''
-    body += '<div class="card"><h2>Een volledige dag verwijderen</h2><p>Voorbije dagen verdwijnen automatisch na middernacht, volgens Belgische tijd. Hieronder kun je ook zelf een dag met alle activiteiten en vervangingen verwijderen.</p><form method="post" action="/kalender-dag-verwijderen" onsubmit="return confirm(\'Deze hele dag met ALLE activiteiten en vervangingen verwijderen?\')"><label>Dag</label><input type="date" name="date" required><p><button class="danger">Hele dag verwijderen</button></p></form></div>'
+    body += '<div class="card"><h2>Een volledige dag verwijderen</h2><p>De kalender schuift op maandag, dinsdag, donderdag en vrijdag om 15u15 door naar de volgende dag; op woensdag om 12u20, volgens Belgische tijd. Hieronder kun je ook zelf een dag met alle activiteiten en vervangingen verwijderen.</p><form method="post" action="/kalender-dag-verwijderen" onsubmit="return confirm(\'Deze hele dag met ALLE activiteiten en vervangingen verwijderen?\')"><label>Dag</label><input type="date" name="date" required><p><button class="danger">Hele dag verwijderen</button></p></form></div>'
     body += f'<div class="card"><h2>Kalender wijzigen</h2><form><label>Zoeken op tekst of datum</label><input name="q" value="{esc(q, quote=True)}"><label>Datum (optioneel)</label><input type="date" name="date" value="{esc(date, quote=True)}"><p><button>Zoeken</button> <a href="/kalender-wijzigen">Alles tonen</a></p></form><p>{len(rows)} kalenderregels</p>'
     for row in rows[start:start + 60]:
         body += f'<div class="row"><div class="text">{esc(row["date"])} · {esc(row["title"])}</div><a class="btn" href="/kalender-regel/{row["id"]}">Aanpassen</a><form method="post" action="/kalender-verwijderen/{row["id"]}" onsubmit="return confirm(\'Deze kalenderregel verwijderen?\')"><input type="hidden" name="version" value="{esc(row["version"], quote=True)}"><button class="danger">Verwijderen</button></form></div>'
