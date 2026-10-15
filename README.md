@@ -1,5 +1,11 @@
 # Telescoop Calendar Hub
 
+## Opsommingstekens (15 oktober 2026)
+
+Elk tekstvak heeft een knop **• Opsomming**. Selecteer regels om ze in een lijst te zetten of plaats de cursor in een regel; Enter maakt binnen een lijst een nieuw punt. Bestaande regels die beginnen met `* ` of `• ` verschijnen als echte opsommingen, ook in de bewerkingsvakken. Agendapunten blijven bij hun vergadering. De opslag bewaart lijstpunten als afzonderlijke regels met `• `, zodat de bestaande sortering, versiecontrole, tekstvervanging en het auditlog blijven werken. Links en opmaak blijven behouden. De weergavewijziging vereist geen migratie van de kalendergegevens.
+
+Controle: `tests/bullets_smoke.py` controleert twee vergaderingen met hun eigen agenda, bestaande sterretjes, nieuwe lijsten in meerdere vakken, links, opnieuw openen en bewaren zonder onnodige wijzigingen, behoud van stages en het schonen van onveilige HTML.
+
 ## Actuele dagkaarten (14 oktober 2026)
 
 De bestaande `/smartschool-calendar`-URL toont de volledige kalender als responsieve dagkaarten. Dagbalken gebruiken de bestaande maandgradiënten; alle vakken hebben een witte achtergrond. Afwezigheden en vervangingen staan bovenaan, het dagprogramma en praktische afspraken in de hoofdkolom, overleg met zijn agendapunten bij elkaar en stages in een aparte kolom. Op een smal scherm komen de vakken onder elkaar. Praktische afspraken hebben een groene rand; uitstappen hebben gewone tekst. De uurkolom is breed genoeg voor een volledig bereik op één regel en heeft geen scheidingslijnen tussen regels. Nascholingen zonder opgegeven dagdeel, expliciete volledige dagen en bosklassen voor een hele klas krijgen DAG. De regelafstand in alle vakken is 1,15; de activiteitstekst is zwart. Maand-, dag- en vaktitels en klasgroepen in het dagprogramma zijn vet. Overleg heeft rand en titel #D31996, praktische afspraken #68991C en afwezigheden #E02020. Het stagevak blijft ook op dagen met uitsluitend stages in de rechterkolom; de overbodige tekst Stage verschijnt niet in de regels.

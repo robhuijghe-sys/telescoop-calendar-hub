@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, NavigableString
 
 from app.calendar_dynamic import MONTH_NAMES, MONTH_PALETTES, SEASONS, _event_line, category_for_row
 from app.day_order import ABSENCE, AGENDA, is_meeting, is_replacement, ordered_fragments
-from app.rich_editor import reshape_html
+from app.rich_editor import reshape_html, bullet_body, bullet_lists
 
 
 TYPE_PANELS = {'waarschuwing':'absence', 'vervanging':'absence', 'stage':'stage',
@@ -26,6 +26,8 @@ CSS = '''
 @media(max-width:720px){.wrap{padding:12px 8px 20px}.logo{max-width:170px}.day-columns{grid-template-columns:1fr;gap:0}.day-header{padding:10px 13px}.day-header h2{font-size:14px}.panel{padding:12px 13px}.calendar-row{grid-template-columns:112px minmax(0,1fr);gap:8px}.moment{font-size:12px}.month-title{font-size:20px}.season,.day-header>span{font-size:11px}}
 @media print{.calendar-day{break-inside:avoid}.month-head,.day-header{print-color-adjust:exact;-webkit-print-color-adjust:exact}.wrap{max-width:none;padding:0}}
 '''
+
+CSS += '.calendar-bullets{list-style:disc;margin:0;padding-left:20px;white-space:normal}.calendar-bullets li{margin:0;padding:2px 0;white-space:pre-wrap}'
 
 
 def scoped_css(scope):
@@ -198,18 +200,36 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
         custom=' data-custom-format="true"' if item['custom'] else ''
         return '<div class="stage-item"'+custom+'><span class="stage-name">'+s.clean_html(reshape_html(rich,name))+'</span> '+''.join('<span class="stage-detail">'+s.clean_html(reshape_html(rich,d))+'</span> ' for d in details)+'</div>'
 
+    def rows(key, items):
+        body, bullets = '', []
+        def flush():
+            if not bullets:return ''
+            markup=bullet_lists(bullets)
+            bullets.clear()
+            if key=='stage':return '<div class="stage-note">'+markup+'</div>'
+            return '<div class="calendar-row"><span class="moment"></span><div class="item-text">'+markup+'</div></div>'
+        for item in items:
+            if bullet_body(item['rich']) is not None:
+                bullets.append(content(item,key))
+            else:
+                body+=flush()
+                body+=stage_item(item) if key=='stage' else row(item,key)
+        return body+flush()
+
     def panel(key,items):
         body=''
-        if key=='stage':body=''.join(stage_item(i) for i in items)
+        if key=='stage':body=rows(key,items)
         elif key=='meeting':
             group=None
+            grouped=[]
             for item in items:
                 if item['group']!=group:
-                    if group is not None:body+='</div>'
+                    if group is not None:body+=rows(key,grouped)+'</div>'
+                    grouped=[]
                     body+='<div class="'+item['meeting_class']+'">';group=item['group']
-                body+=row(item,key)
-            if group is not None:body+='</div>'
-        else:body=''.join(row(i,key) for i in items)
+                grouped.append(item)
+            if group is not None:body+=rows(key,grouped)+'</div>'
+        else:body=rows(key,items)
         return f'<section class="panel {key}"><h3>{PANEL_LABELS[key]}</h3>'+body+'</section>'
 
     blocks=[]

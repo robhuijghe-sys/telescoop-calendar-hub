@@ -3,7 +3,7 @@
   function safeHTML(value) {
     const doc = new DOMParser().parseFromString(value, 'text/html');
     doc.querySelectorAll('script,style,iframe,object,svg,math,template').forEach(el => el.remove());
-    const allowed = new Set(['SPAN','B','STRONG','I','EM','U','A','BR','P','DIV','FONT']);
+    const allowed = new Set(['SPAN','B','STRONG','I','EM','U','A','BR','P','DIV','FONT','UL','LI']);
     doc.body.querySelectorAll('*').forEach(el => {
       if (!allowed.has(el.tagName)) { el.replaceWith(...el.childNodes); return; }
       const color = el.getAttribute('color');
@@ -71,11 +71,14 @@
       sourceMode = false; source.hidden = true; visual.hidden = false;
       tools.querySelector('[data-action=source]').setAttribute('aria-pressed', 'false');
     };
-    const restore = () => {
+    const restore = (wholeField = true) => {
       showVisual(); visual.focus();
       const selected = window.getSelection();
       const range = selection && visual.contains(selection.commonAncestorContainer) ? selection.cloneRange() : document.createRange();
-      if (!selection || range.collapsed || !visual.contains(range.commonAncestorContainer)) range.selectNodeContents(visual);
+      if (!selection || !visual.contains(range.commonAncestorContainer)) {
+        range.selectNodeContents(visual);
+        if (!wholeField) range.collapse(false);
+      } else if (range.collapsed && wholeField) range.selectNodeContents(visual);
       selected.removeAllRanges(); selected.addRange(range);
     };
     tools.addEventListener('mousedown', event => { if (event.target.closest('button')) event.preventDefault(); });
@@ -91,15 +94,20 @@
         }
         return;
       }
-      restore();
+      restore(action !== 'bullets');
       document.execCommand('styleWithCSS', false, true);
       if (action === 'color') document.execCommand('foreColor', false, picker.value);
       if (action === 'bold') document.execCommand('bold', false);
+      if (action === 'bullets') document.execCommand('insertUnorderedList', false);
       if (action === 'clear') document.execCommand('removeFormat', false);
       remember(); source.value = safeHTML(visual.innerHTML);
+      visual.dispatchEvent(new Event('input', {bubbles:true}));
     });
     visual.addEventListener('beforeinput', event => {
       if (event.inputType === 'insertParagraph') {
+        const anchor = window.getSelection()?.anchorNode;
+        const element = anchor?.nodeType === Node.ELEMENT_NODE ? anchor : anchor?.parentElement;
+        if (element?.closest('li') && visual.contains(element.closest('li'))) return;
         event.preventDefault();
         document.execCommand('insertLineBreak', false);
       }

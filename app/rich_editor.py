@@ -5,6 +5,52 @@ from difflib import SequenceMatcher
 
 from bs4 import BeautifulSoup, NavigableString
 
+BULLET = re.compile(r'^[*•]\s+')
+
+
+def bullet_body(value):
+    """Strip a leading agenda marker without touching inline links or emphasis."""
+    text = fragment_text(value)
+    match = BULLET.match(text)
+    return reshape_html(value, text[match.end():]) if match else None
+
+
+def bullet_lists(fragments):
+    """Present consecutive marked lines as a semantic unordered list."""
+    result, listing, previous_line = [], False, False
+    for fragment in fragments:
+        body = bullet_body(fragment)
+        if body is not None:
+            if not listing:
+                result.append('<ul class="calendar-bullets">')
+                listing = True
+            result.append('<li>' + body + '</li>')
+            previous_line = False
+        else:
+            if listing:
+                result.append('</ul>')
+                listing = False
+            elif previous_line:
+                result.append('<br/>')
+            result.append(fragment)
+            previous_line = True
+    if listing:
+        result.append('</ul>')
+    return ''.join(result)
+
+
+def flatten_lists(soup):
+    """Store browser list items as separate, portable bullet lines."""
+    for item in list(soup.find_all('li')):
+        item.insert_before(soup.new_tag('br'))
+        item.insert_before(NavigableString('• '))
+        item.insert_after(soup.new_tag('br'))
+        item.unwrap()
+    for listing in list(soup.find_all(('ul', 'ol'))):
+        listing.insert_before(soup.new_tag('br'))
+        listing.insert_after(soup.new_tag('br'))
+        listing.unwrap()
+
 
 def without_bold(value):
     """Remove bold presentation while retaining every word, color and link."""
@@ -127,6 +173,7 @@ def editor(name, value='', label='Tekst', required=False, limit=20000, placehold
         <label>Kleur <input type="color" value="#203555" aria-label="Tekstkleur"></label>
         <button type="button" data-action="color">Kleur toepassen</button>
         <button type="button" data-action="bold" aria-label="Vet">Vet</button>
+        <button type="button" data-action="bullets" aria-label="Opsommingstekens">• Opsomming</button>
         <button type="button" data-action="clear">Opmaak wissen</button>
         <button type="button" data-action="source" aria-pressed="false">HTML</button>
       </div>
@@ -144,4 +191,5 @@ EDITOR_CSS = '''
 .editor-tools button{font-size:14px;padding:7px 9px}.html-editor .editbox{background:white;border-radius:0 0 8px 8px;white-space:pre-wrap;overflow-wrap:anywhere;min-height:110px}.editbox:empty:before{content:attr(data-placeholder);color:#726761;pointer-events:none}
 .html-editor textarea{font-family:monospace!important;min-height:130px}.editor-error{color:#8a2f2f}.editor-tools button[aria-pressed=true]{background:#672f57}.editor-visual p,.editor-visual div{margin:0}
 .type-color{display:flex;align-items:center;gap:8px;font-size:14px}.type-color-dot{width:14px;height:14px;flex-shrink:0;border:1px solid #b9b9b9;border-radius:50%;background:#fff}
+.editor-visual ul{margin:4px 0;padding-left:22px;list-style:disc}.editor-visual li{margin:0;padding:2px 0}
 '''

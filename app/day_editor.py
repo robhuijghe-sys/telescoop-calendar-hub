@@ -14,6 +14,7 @@ from app.calendar_dynamic import _event_line, MONTH_NAMES, MONTH_PALETTES
 from app.day_cards import PANEL_LABELS, render_calendar, scoped_css
 from app.section_editor import save_sections
 from app.month_focus import focus_state
+from app.rich_editor import bullet_lists
 
 
 CSS = scoped_css('.calendar-preview') + scoped_css('.calendar-edit-panels') + """
@@ -50,7 +51,7 @@ document.addEventListener('click', event => {
 document.querySelectorAll('.day-dialog').forEach(dialog => {
   dialog.addEventListener('input', () => { dialog.dataset.changed = '1'; });
   dialog.querySelectorAll('.editor-tools').forEach(tools => tools.addEventListener('click', e => {
-    if (['color','bold','clear'].includes(e.target.closest('button')?.dataset.action)) dialog.dataset.changed = '1';
+    if (['color','bold','bullets','clear'].includes(e.target.closest('button')?.dataset.action)) dialog.dataset.changed = '1';
   }));
   dialog.addEventListener('cancel', e => {
     if (dialog.dataset.changed && !confirm('Niet-opgeslagen wijzigingen verwerpen?')) e.preventDefault();
@@ -100,7 +101,7 @@ def register_day_editor(s):
         sections=sections or {key:[] for key in PANEL_LABELS}
         placeholders={'absence':'DAG: naam afwezig','activities':'9u30: L3 - activiteit (plaats)','practical':'Afspraak of taak','meeting':'15u30: overleg\n* agendapunt','stage':'Naam, klasgroep en eventueel uren'}
         def field(key):
-            value='<br/>'.join(item['rich'] for item in sections.get(key,[]))
+            value=bullet_lists([item['rich'] for item in sections.get(key,[])])
             return (f'<section class="panel {key}" id="panel-{date}-{key}" data-editor-panel="{key}"><h3>{PANEL_LABELS[key]}</h3>'
                     +s.editor('body_'+key,value,PANEL_LABELS[key],limit=100000,field_id=date+'-'+key,placeholder=placeholders[key])+'</section>')
         # Kept hidden for older clients that still submit the original whole-day field.

@@ -26,10 +26,10 @@ import app.delete_flow as deletion
 from app.outing_format import outing_label, bulk_outing
 from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
-from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold
+from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold, flatten_lists
 from app.school_theme import themed_document
 
-BUILD = 'railway-editor-20261014-panel-editor'
+BUILD = 'railway-editor-20261015-bullets'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -85,6 +85,7 @@ def clean_html(value):
     # subsequent content when a full day combines several stored fragments.
     value = re.sub(r'<br\s*/?>', '<br/>', value, flags=re.I)
     soup = BeautifulSoup(value, 'html.parser')
+    flatten_lists(soup)
     for tag in list(soup.find_all(True)):
         if not tag.name:
             continue
@@ -246,7 +247,7 @@ snapshot._top_links_html = links_html
 
 def page(title, body):
     nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-vervangen">Zoeken en vervangen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a></nav>'
-    return themed_document(original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js" defer></script></body>'))
+    return themed_document(original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js?v=20261015-bullets" defer></script></body>'))
 
 
 def management_page(title, body, user=None):
