@@ -39,7 +39,7 @@ with TestClient(app) as c:
     assert '*' not in soup.select_one('.meeting').get_text()
     stage=next(r for r in records() if 'Noor' in r['title'])
     soup,data=edit(c)
-    assert len(soup.select('[data-action=bullets]'))==5
+    assert len(soup.select('[data-action=bullets]'))==6
     assert len(BeautifulSoup(data['body_meeting'],'html.parser').select('ul li'))==4
     data['body_meeting']+='\n<ul><li>Nieuwe afspraak</li><li><a href="https://example.org/a">Actie opvolgen</a></li></ul>'
     data['body_practical']='<ul><li>Materiaal klaarzetten</li><li>Kopieën maken</li></ul>'

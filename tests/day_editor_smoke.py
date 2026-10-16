@@ -44,7 +44,7 @@ with TestClient(app) as client:
     assert len(listing.select('.day-heading-actions [data-edit-day]')) == 2
     assert not listing.select('a[href^="/kalender-regel/"]')
     assert len(listing.select('dialog textarea[name=body_html]')) == 2
-    assert len(listing.select('dialog [data-editor-panel]')) == 10
+    assert len(listing.select('dialog [data-editor-panel]')) == 12
     assert listing.select_one('[data-edit-day]').get_text() == 'Bewerken'
     delete_forms = listing.select('.day-heading-actions form')
     assert len(delete_forms) == 2
