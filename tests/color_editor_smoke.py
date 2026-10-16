@@ -99,7 +99,7 @@ with TestClient(app) as client:
     # Type selection works without client-side code, including unstructured tasks.
     home_doc = BeautifulSoup(client.get('/').text, 'html.parser')
     type_values = {o['value'] for o in home_doc.select('select[name=category] option')}
-    assert {'auto', 'uitstap', 'waarschuwing', 'secretariaat', 'stage', 'personeel', 'ouders', 'algemeen'} == type_values
+    assert {'auto', 'uitstap', 'waarschuwing', 'secretariaat', 'stage', 'personeel', 'ouders', 'algemeen', 'onderhoud'} == type_values
     for category, text, expected, title in [
         ('uitstap', 'NM: L4: museum', '#2F2926', 'NM: L4 - Uitstap (museum)'),
         ('waarschuwing', 'Lien afwezig', '#D32F2F', 'Lien afwezig'),
@@ -107,6 +107,7 @@ with TestClient(app) as client:
         ('stage', 'Stage Noor van 8u30 tot 12u40', '#5dade2', 'Stage Noor van 8u30 tot 12u40'),
         ('personeel', '15u30: overleg leesbeleid', '#000000', '15u30: overleg leesbeleid'),
         ('ouders', '16u00: infoavond', '#99CA3B', '16u00: infoavond'),
+        ('onderhoud', '9u00 - 9u30: filters reinigen', '#8FA382', '9u00 - 9u30: filters reinigen'),
         ('algemeen', 'Materialen klaarleggen', '#2F2926', 'Materialen klaarleggen'),
     ]:
         response = client.post('/kalender-toevoegen', data={'date':'2026-10-16', 'category':category, 'structured':'1', 'lines_html':text}, follow_redirects=False)
