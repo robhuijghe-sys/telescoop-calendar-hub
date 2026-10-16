@@ -373,11 +373,10 @@ def home(saved: int = 0, added: int = 0):
         ('stage', 'Stages', 'Schrijf één stagiair per regel, met de naam en eventueel klasgroep en uren. Het woord Stage hoeft er niet bij.', 'Imane K0K1 van 8u30 tot 12u40', 'lichtblauw'),
         ('personeel', 'Overleg en agenda', 'Schrijf één overleg of agendapunt per regel, eventueel met het uur.', '15u30: teamvergadering', 'roze (#D31996)'),
         ('ouders', 'Ouders / oudercontact', 'Schrijf één ouderactiviteit per regel, eventueel met klasgroep en uur.', '16u00: oudercontact L1', 'groen'),
-        ('onderhoud', 'Onderhoud en klusjes', 'Schrijf één onderhoudstaak per regel, met het begin- en einduur.', '9u00 - 9u30: onderhoudstaak', '#8FA382'),
         ('algemeen', 'Algemeen', 'Schrijf één activiteit per regel, eventueel met klasgroep en uur.', 'Materiaal klaarleggen', 'donkergrijs'),
     ]
-    panel_labels = {'waarschuwing':'Afwezigheden en vervangingen', 'secretariaat':'Praktische afspraken', 'stage':'Stages', 'personeel':'Overleg en agenda', 'onderhoud':'Onderhoud en klusjes'}
-    panel_colors = {'secretariaat':'#68991C', 'personeel':'#D31996', 'onderhoud':'#8FA382'}
+    panel_labels = {'waarschuwing':'Afwezigheden en vervangingen', 'secretariaat':'Praktische afspraken', 'stage':'Stages', 'personeel':'Overleg en agenda'}
+    panel_colors = {'secretariaat':'#68991C', 'personeel':'#D31996'}
     options = ''.join(f'<option value="{key}" data-color="{panel_colors.get(key, CATEGORY_COLORS[key][0]) if key != "auto" else ""}" data-panel="{panel_labels.get(key, "Dagprogramma") if key != "auto" else ""}" data-help="{esc(help_text, quote=True)}" data-placeholder="{esc(placeholder, quote=True)}">{label}</option>' for key, label, help_text, placeholder, color_name in types)
     body = '''<details class="card" open><summary>Toevoegen aan kalender</summary><p>Kies één datum en een type. Meerdere regels worden samen opgeslagen en blijven apart aanpasbaar.</p><form method="post" action="/kalender-toevoegen"><input type="hidden" name="structured" value="1"><label for="activity-date">Datum</label><input id="activity-date" type="date" name="date" required>'''
     body += f'<label for="activity-type">Type</label><select id="activity-type" name="category" data-calendar-type>{options}</select><p class="type-color" aria-live="polite"><span class="type-color-dot" aria-hidden="true"></span><span class="type-color-text">Het vak wordt automatisch per regel gekozen. De tekst blijft zwart.</span></p><p id="activity-type-help">{types[0][2]}</p>'
@@ -608,7 +607,7 @@ def edit_row(key: str):
     if kind == 'basis':
         date, version = row['date_local'], str(row['version'])
         fields = editor('body_html', clean_html(row['body_html']), 'Tekst en links van deze regel', required=True)
-        choices=[('auto','Automatisch'),('algemeen','Dagprogramma'),('uitstap','Uitstap / dagprogramma'),('ouders','Ouders / dagprogramma'),('waarschuwing','Afwezigheden en vervangingen'),('stage','Stages'),('secretariaat','Praktische afspraken'),('personeel','Overleg en agenda'),('onderhoud','Onderhoud en klusjes')]
+        choices=[('auto','Automatisch'),('algemeen','Dagprogramma'),('uitstap','Uitstap / dagprogramma'),('ouders','Ouders / dagprogramma'),('waarschuwing','Afwezigheden en vervangingen'),('stage','Stages'),('secretariaat','Praktische afspraken'),('personeel','Overleg en agenda')]
         fields += '<label>Type</label><select name="category">'+''.join(f'<option value="{k}" {"selected" if row["activity_type"]==k else ""}>{v}</option>' for k,v in choices)+'</select>'
         fields += f'<input type="hidden" name="whole_day_present" value="1"><label style="display:flex;align-items:center;gap:8px"><input style="width:auto" type="checkbox" name="whole_day" value="1" {"checked" if row["whole_day"] else ""}>Hele dag (DAG)</label>'
     else:

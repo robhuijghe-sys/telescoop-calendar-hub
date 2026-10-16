@@ -25,7 +25,6 @@ CATEGORY_COLORS = {
     "secretariaat": ("#a2c647", "Taak secretariaat"),
     "uitstap": ("#2F2926", "Uitstap / activiteit"),
     "waarschuwing": ("#D32F2F", "Afwezig / waarschuwing"),
-    "onderhoud": ("#8FA382", "Onderhoud en klusjes"),
     "algemeen": ("#2F2926", "Algemeen"),
 }
 
@@ -42,7 +41,6 @@ CATEGORY_ALIASES = {
     "afwezigheid": "waarschuwing",
     "uitstap": "uitstap",
     "waarschuwing": "waarschuwing",
-    "onderhoud": "onderhoud",
     "algemeen": "algemeen",
     "auto": "auto",
     "": "auto",

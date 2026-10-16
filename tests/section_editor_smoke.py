@@ -38,7 +38,6 @@ with TestClient(app) as c:
         ('secretariaat','Kopieën maken',{}),
         ('personeel','15u30: Teamvergadering',{}),
         ('stage','Stage Noor bij K2',{}),
-        ('onderhoud','9u00 - 9u30: filters reinigen',{}),
     ]:
         assert c.post('/kalender-toevoegen',data={'date':day,'category':category,'lines':text,**extra}).status_code==200
     c.post('/public/create',data={'date':day,'title':'Bibliotheek','start_time':'09:00','end_time':'10:00','category':'algemeen','description':'Boeken meenemen'})
@@ -48,9 +47,7 @@ with TestClient(app) as c:
                 (day,'Activiteitsintro<br/>11u45: einde lessen<br/>11u55: verplaatsing','Activiteitsintro\n11u45: einde lessen\n11u55: verplaatsing','algemeen'))
     con.commit();con.close()
     soup,data=edit(c)
-    assert len(soup.select('[data-editor-panel]'))==len(PANEL_LABELS)
-    assert 'filters reinigen' in BeautifulSoup(data['body_maintenance'],'html.parser').get_text()
-    assert calendar(c).select_one('.maintenance h3').get_text()=='Onderhoud en klusjes'
+    assert len(soup.select('[data-editor-panel]'))==5
     assert soup.select_one('.calendar-edit-panels > .absence')
     assert soup.select_one('.day-columns > .day-stages > .stage')
     assert 'Stage' not in BeautifulSoup(data['body_stage'],'html.parser').get_text()

@@ -99,7 +99,7 @@ def register_day_editor(s):
         close = ' data-close-day' if modal else ''
         message = f'<p class="day-error" role="alert">{s.esc(error)}</p>' if error else ''
         sections=sections or {key:[] for key in PANEL_LABELS}
-        placeholders={'absence':'DAG: naam afwezig','activities':'9u30: L3 - activiteit (plaats)','practical':'Afspraak of taak','meeting':'15u30: overleg\n* agendapunt','maintenance':'9u00 - 9u30: onderhoudstaak','stage':'Naam, klasgroep en eventueel uren'}
+        placeholders={'absence':'DAG: naam afwezig','activities':'9u30: L3 - activiteit (plaats)','practical':'Afspraak of taak','meeting':'15u30: overleg\n* agendapunt','stage':'Naam, klasgroep en eventueel uren'}
         def field(key):
             value=bullet_lists([item['rich'] for item in sections.get(key,[])])
             return (f'<section class="panel {key}" id="panel-{date}-{key}" data-editor-panel="{key}"><h3>{PANEL_LABELS[key]}</h3>'
@@ -107,7 +107,7 @@ def register_day_editor(s):
         # Kept hidden for older clients that still submit the original whole-day field.
         fields=f'<textarea name="body_html" hidden>{s.esc(rich)}</textarea><input type="hidden" name="sections_present" value="1">'
         fields+='<div class="calendar-edit-panels">'+field('absence')+'<div class="day-columns"><div class="day-main">'
-        fields+=''.join(field(key) for key in ('activities','practical','meeting','maintenance'))
+        fields+=''.join(field(key) for key in ('activities','practical','meeting'))
         fields+='</div><aside class="day-stages">'+field('stage')+'</aside></div></div>'
         action = (f'<a class="btn" href="/kalender-dag/{date}">Dag opnieuw openen</a>' if conflict else
                   '<button>Wijzigingen opslaan</button>')
