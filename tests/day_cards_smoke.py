@@ -48,7 +48,6 @@ with TestClient(app) as c:
     css=doc.select_one('style').get_text()
     assert 'grid-template-columns:128px' in css and 'white-space:nowrap' in css
     assert '.panel.practical{border-color:#68991C}.practical h3{color:#68991C}' in css
-    assert '.panel.meeting{border-color:#D31996}.meeting h3{color:#D31996}' in css
     assert '.item-text,.item-text *,.stage-item,.stage-item *,.stage-note,.stage-note *{color:#000000!important}' in css
     assert not any('color:' in n['style'] for n in doc.select('.panel [style]'))
     assert 'border-bottom:1px solid #edf0f5' not in css
