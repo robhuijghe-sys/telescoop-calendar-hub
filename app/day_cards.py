@@ -3,6 +3,7 @@ import html
 import json
 import re
 from difflib import SequenceMatcher
+from urllib.parse import quote
 
 from bs4 import BeautifulSoup, NavigableString
 
@@ -28,6 +29,46 @@ CSS = '''
 '''
 
 CSS += '.calendar-bullets{list-style:disc;margin:0;padding-left:20px;white-space:normal}.calendar-bullets li{margin:0;padding:2px 0;white-space:pre-wrap}'
+
+
+# A small, self-contained illustration echoes the telescope, stars and palette
+# of the school logo. Only the actual Belgian date receives this treatment.
+TODAY_SKY = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 90">
+<defs><linearGradient id="cloud" x2="0" y2="1"><stop stop-color="#fffef4"/><stop offset="1" stop-color="#dce7ec"/></linearGradient><linearGradient id="gold" x2="0" y2="1"><stop stop-color="#ffe695"/><stop offset=".45" stop-color="#f7bf23"/><stop offset="1" stop-color="#c27e14"/></linearGradient></defs>
+<g fill="url(#cloud)"><path d="M310 79c-18-2-19-19-3-24-1-15 21-22 31-10 10-24 44-19 48 2 21-4 33 10 28 23 17 1 20 9 15 12z"/><path d="M525 36c-13-2-14-13-3-17 0-12 16-16 24-7 7-18 32-14 35 1 17-3 25 9 21 17 12 0 15 7 11 10z"/><path d="M730 84c-21-3-24-22-6-29-2-17 22-26 35-13 10-28 49-24 56 1 23-5 37 11 30 26 18 0 24 12 17 18z"/><path d="M998 27c-12-1-15-13-4-17 1-11 16-16 24-7 9-17 32-12 34 2 15-3 24 7 20 16 11 1 14 8 9 11z"/></g>
+<ellipse cx="938" cy="81" rx="39" ry="4" fill="#232563" opacity=".12"/>
+<g transform="translate(936 40) rotate(-25)"><path d="M-29-9h63v20h-63z" fill="url(#gold)" stroke="#9c711c" stroke-width="1"/><ellipse cx="-29" cy="1" rx="5" ry="10" fill="#e9a51a"/><path d="M-42-5h12v12h-12z" fill="#232563"/><path d="M-12-9v20M16-9v20" stroke="#fff0ab" stroke-width="2"/><ellipse cx="34" cy="1" rx="7" ry="12" fill="#f7bf23"/><ellipse cx="35" cy="1" rx="4.5" ry="9" fill="#232563"/><ellipse cx="36" cy="-2" rx="2" ry="5" fill="#638ca9"/></g>
+<path d="m875 12 2 5 5 1-4 3 1 5-4-3-5 3 2-5-4-3 5-1zM1001 64l2 4 4 1-3 3 1 4-4-2-4 2 1-4-3-3 4-1z" fill="#f7bf23"/>
+<path d="M0 88Q240 77 440 86T820 86T1100 82v8H0z" fill="#8bb43f" opacity=".8"/>
+</svg>"""
+CSS += """
+.calendar-day.is-today>.day-header{position:relative;isolation:isolate;overflow:hidden;min-height:76px;padding:13px 20px;border:1px solid #506f91;border-left:5px solid #8bb43f;box-shadow:0 3px 10px rgba(35,37,99,.13);background:linear-gradient(110deg,#232563 0%,#365c88 35%,#719fc1 73%,#abc9d7 100%)!important}
+.calendar-day.is-today>.day-header::before{content:'';position:absolute;inset:0;z-index:-1;background-image:url('data:image/svg+xml,__TODAY_SKY__');background-repeat:no-repeat;background-position:right center;background-size:auto 100%;pointer-events:none}
+.day-header .today-label{display:none}
+.calendar-day.is-today>.day-header h2{position:relative;color:#fff;max-width:calc(100% - 135px);text-shadow:0 1px 3px #232563;line-height:1.4}
+.calendar-day.is-today>.day-header .today-label{display:block;width:max-content;margin-bottom:4px;padding:2px 8px;border:1px solid rgba(247,191,35,.7);border-radius:20px;background:#232563;color:#ffe08a;font-size:9px;line-height:1.3;letter-spacing:.13em;text-transform:uppercase;text-shadow:none}
+@media(max-width:520px){.calendar-day.is-today>.day-header{min-height:72px;padding:11px 12px}.calendar-day.is-today>.day-header::before{background-position:right -49px center}.calendar-day.is-today>.day-header h2{max-width:calc(100% - 75px);font-size:14px}}
+@media print{.calendar-day.is-today>.day-header{box-shadow:none;print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+""".replace('__TODAY_SKY__', quote(TODAY_SKY, safe=''))
+
+TODAY_SCRIPT = """<script id="calendar-today">
+(() => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit'});
+  function markToday() {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date()).map(p => [p.type,p.value]));
+    const today = parts.year + '-' + parts.month + '-' + parts.day;
+    document.querySelectorAll('.calendar-day[data-calendar-date]').forEach(day => {
+      const current = day.dataset.calendarDate === today;
+      day.classList.toggle('is-today', current);
+      if (current) day.setAttribute('aria-current', 'date');
+      else day.removeAttribute('aria-current');
+    });
+  }
+  document.addEventListener('visibilitychange', markToday);
+  setInterval(markToday, 60000);
+  markToday();
+})();
+</script>"""
 
 
 def scoped_css(scope):
@@ -272,7 +313,9 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
                 editing[ds]={key:[dict(item,rich=editable(item,key)) for item in bucket] for key,bucket in buckets.items()}
             day=s.datetime.fromisoformat(ds)
             label=WEEKDAYS[day.weekday()]+' '+str(day.day)+' '+MONTH_NAMES[month].lower()
-            card=f'<article class="calendar-day" data-calendar-date="{ds}"><header class="day-header" style="{gradient}"><h2>{label}</h2></header><div class="calendar-body">'
+            current = ' is-today' if day.date() == today else ''
+            aria_current = ' aria-current="date"' if current else ''
+            card=f'<article class="calendar-day{current}" data-calendar-date="{ds}"{aria_current}><header class="day-header" style="{gradient}"><h2><span class="today-label">Vandaag</span>{label}</h2></header><div class="calendar-body">'
             if buckets['absence']:card+=panel('absence',buckets['absence'])
             left=''.join(panel(k,buckets[k]) for k in ('activities','practical','meeting') if buckets[k])
             if buckets['stage']:
@@ -284,4 +327,4 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
         blocks.append(f'<section class="month-card"><div class="month-head" style="{gradient}"><span class="month-title">{MONTH_NAMES[month]}</span><span class="season">{SEASONS[month]}</span></div>'+focus_html+''.join(cards)+'</section>')
     if editor_data:return {'cards':rendered,'sections':editing}
     if cards_only:return rendered
-    return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="7200"><title>Schoolkalender De Telescoop</title><style>'+CSS+'</style></head><body><main class="wrap"><img class="logo" src="https://telescoop-sgr8.smartschool.be/public/telescoop-sgr8/Images/P8JUKt6zzs28fnA9LjPg2owGK1768144749.PNG" alt="De Telescoop"><div class="links">'+s.links_html()+'</div>'+''.join(blocks)+'</main></body></html>'
+    return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="7200"><title>Schoolkalender De Telescoop</title><style>'+CSS+'</style></head><body><main class="wrap"><img class="logo" src="https://telescoop-sgr8.smartschool.be/public/telescoop-sgr8/Images/P8JUKt6zzs28fnA9LjPg2owGK1768144749.PNG" alt="De Telescoop"><div class="links">'+s.links_html()+'</div>'+''.join(blocks)+'</main>'+TODAY_SCRIPT+'</body></html>'
