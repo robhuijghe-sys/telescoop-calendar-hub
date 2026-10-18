@@ -304,6 +304,8 @@ async def editor_headers(request: Request, call_next):
         response.headers['Cache-Control'] = 'no-store'
     response.headers['Referrer-Policy'] = 'same-origin'
     response.headers['X-Content-Type-Options'] = 'nosniff'
+    if request.url.path == '/calendar-editor/today-sky-v2.webp':
+        response.headers['Content-Type'] = 'image/webp'
     return response
 
 
