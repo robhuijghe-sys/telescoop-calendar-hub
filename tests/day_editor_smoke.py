@@ -61,7 +61,15 @@ with TestClient(app) as client:
     calendar = BeautifulSoup(client.get('/smartschool-calendar').text, 'html.parser')
     assert not calendar.select_one('style#school-theme')
     assert 'background:#fff' in calendar.select_one('style').get_text()
-    assert 'background:linear-gradient(135deg,' in calendar.select_one('.month-head')['style']
+    # Month artwork follows the contained dates while labels stay accessible.
+    from app.calendar_dynamic import MONTH_NAMES, SEASONS
+    for section in calendar.select('.month-card'):
+        month = int(section.select_one('[data-calendar-date]')['data-calendar-date'][5:7])
+        heading = section.select_one('.month-head')
+        assert heading.select_one('.month-title').get_text() == MONTH_NAMES[month]
+        assert heading.select_one('.season').get_text() == SEASONS[month]
+        artwork = heading.select_one('.month-art[aria-hidden="true"]')
+        assert f'/calendar-editor/months/month-{month:02d}-v1.webp' in artwork['style']
     assert not calendar.select('b,strong')
     assert not any('font-weight:' in tag.get('style', '') for tag in calendar.select('[style]'))
     assert '.wrap,.wrap *{font-weight:400!important}' in str(calendar)
