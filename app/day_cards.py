@@ -43,6 +43,32 @@ CSS += """
 @media print{.calendar-day.is-today>.day-header{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 """
 
+# Month artwork has its own decorative layer; the existing padding and title
+# line height keep every month header at its original desktop/mobile height.
+CSS += """
+.month-head{position:relative;isolation:isolate;overflow:hidden;justify-content:flex-start}
+.month-art{position:absolute;inset:0 0 0 auto;width:360px;max-width:100%;z-index:-1;background-repeat:no-repeat;background-position:left top,right center;background-size:auto,auto 82px;pointer-events:none}
+.month-title,.month-head .season{position:relative;flex:none;white-space:nowrap;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+.month-head .season{letter-spacing:.12em}
+@media(max-width:520px){.month-art{width:250px;background-size:auto,auto 76px}.month-head{gap:10px}.month-head .season{font-size:9px;letter-spacing:.08em}}
+@media(max-width:360px){.month-title{font-size:18px;line-height:26px}.month-head{gap:8px}}
+"""
+
+
+def month_header(month):
+    """Use each month's established hue, darkened behind accessible live text."""
+    color = MONTH_PALETTES[month][0]
+    rgb = tuple(round(int(color[i:i+2], 16) * .58) for i in (1, 3, 5))
+    ink = '#%02x%02x%02x' % rgb
+    transparent = 'rgba(%d,%d,%d,0)' % rgb
+    artwork = (f'linear-gradient(90deg,{ink} 0%,{ink} 35%,{transparent} 70%),'
+               f'url(/calendar-editor/months/month-{month:02d}-v1.webp)')
+    return (f'<div class="month-head" data-calendar-month="{month:02d}" style="background:{ink}">'
+            f'<span class="month-art" aria-hidden="true" style="background-image:{artwork}"></span>'
+            f'<span class="month-title">{MONTH_NAMES[month]}</span>'
+            f'<span class="season">{SEASONS[month]}</span></div>')
+
+
 TODAY_SCRIPT = """<script id="calendar-today">
 (() => {
   const formatter = new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Brussels',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -316,7 +342,7 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
             if not items:card+='<p class="muted empty-day">Nog geen inhoud.</p>'
             rendered[ds]=card+'</div></article>'
             cards.append(rendered[ds])
-        blocks.append(f'<section class="month-card"><div class="month-head" style="{gradient}"><span class="month-title">{MONTH_NAMES[month]}</span><span class="season">{SEASONS[month]}</span></div>'+focus_html+''.join(cards)+'</section>')
+        blocks.append('<section class="month-card">'+month_header(month)+focus_html+''.join(cards)+'</section>')
     if editor_data:return {'cards':rendered,'sections':editing}
     if cards_only:return rendered
     return '<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="7200"><title>Schoolkalender De Telescoop</title><style>'+CSS+'</style></head><body><main class="wrap"><img class="logo" src="https://telescoop-sgr8.smartschool.be/public/telescoop-sgr8/Images/P8JUKt6zzs28fnA9LjPg2owGK1768144749.PNG" alt="De Telescoop"><div class="links">'+s.links_html()+'</div>'+''.join(blocks)+'</main>'+TODAY_SCRIPT+'</body></html>'
