@@ -33,8 +33,8 @@ CSS += '.calendar-bullets{list-style:disc;margin:0;padding-left:20px;white-space
 # The painted artwork stays behind live date text. Preserve the standard header
 # padding and line height so today takes exactly the same space as other dates.
 CSS += """
-.calendar-day.is-today>.day-header{position:relative;isolation:isolate;overflow:hidden;background:#08294e url('/calendar-editor/today-sky-v2.webp') left top/100% auto no-repeat!important}
-.calendar-day.is-today>.day-header::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#08294e 0%,rgba(8,41,78,.92) 35%,rgba(8,41,78,0) 66%),url('/calendar-editor/today-sky-v2.webp') right 43%/auto 92px no-repeat;pointer-events:none}
+.calendar-day.is-today>.day-header{position:relative;isolation:isolate;overflow:hidden;background:#08294e!important}
+.calendar-day.is-today>.day-header::before{content:'';position:absolute;inset:0 0 0 auto;width:360px;max-width:100%;z-index:-1;background:linear-gradient(90deg,#08294e 0%,rgba(8,41,78,.92) 35%,rgba(8,41,78,0) 66%),url('/calendar-editor/today-sky-v2.webp') right 43%/auto 92px no-repeat;pointer-events:none}
 .day-header .today-label{display:none}
 .calendar-day.is-today>.day-header h2{display:flex;align-items:center;gap:12px;position:relative;color:#fff;max-width:calc(100% - 100px);text-shadow:0 1px 3px #08294e;white-space:nowrap}
 .calendar-day.is-today>.day-header .today-label{display:inline-block;flex:none;color:#f4cb74;font-size:9px;line-height:1;letter-spacing:.13em;text-transform:uppercase}
