@@ -28,14 +28,14 @@ with TestClient(editor.app) as c:
     assert len(editor.rows_all())==3
     c.post('/public/create',follow_redirects=False, data={'date':'2026-10-01','title':'Extra event'})
     c.post('/kalender-toevoegen',follow_redirects=False, data={'date':'2026-10-02','lines':'Adjacent'})
-    # The display advances at 15:15 Belgian time; the editor keeps today's records.
-    Clock.current='2026-10-01T13:14:59+00:00'
+    # The display advances at 17:00 Belgian time; the editor keeps today's records.
+    Clock.current='2026-10-01T14:59:59+00:00'
     before=c.get('/smartschool-calendar')
     assert 'data-calendar-date="2026-10-01"' in before.text
     edit_before=c.get('/kalender-wijzigen').text
     assert '5 kalenderregels' in edit_before and 'Extra event' in edit_before and 'User change' in edit_before
     assert 'id="editor-day-refresh"' in edit_before and 'const renderedDay = "2026-10-01"' in edit_before
-    Clock.current='2026-10-01T13:15:00+00:00'
+    Clock.current='2026-10-01T15:00:00+00:00'
     after=c.get('/smartschool-calendar',headers={'If-None-Match':before.headers['etag']})
     assert after.status_code==200 and 'data-calendar-date="2026-10-01"' not in after.text
     assert '5 kalenderregels' in c.get('/kalender-wijzigen').text
