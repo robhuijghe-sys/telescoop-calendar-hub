@@ -20,19 +20,23 @@ from fastapi.testclient import TestClient
 import app.simple_calendar as editor
 
 cases = []
-# Each weekday, including the shorter Wednesday, in both summer and winter time.
+# Every weekday, including Wednesday, switches at 17:00 in Belgian summer and winter time.
 for monday in ('2026-10-12', '2026-10-26'):
     for offset in range(7):
         day = datetime.fromisoformat(monday).replace(tzinfo=editor.core.TZ) + timedelta(days=offset)
         if offset < 5:
-            cutoff = day.replace(hour=12 if offset == 2 else 15, minute=20 if offset == 2 else 15)
+            cutoff = day.replace(hour=17, minute=0)
             cases.extend([(cutoff - timedelta(seconds=1), day.date()),
                           (cutoff, day.date() + timedelta(days=1))])
         else:
             cases.append((day.replace(hour=23, minute=59), day.date()))
 # Date arithmetic must also work across a month/year and the daylight-saving weekend.
-for instant, expected in [('2026-09-30T12:20:00+02:00', '2026-10-01'),
-                          ('2026-12-31T15:15:00+01:00', '2027-01-01'),
+for instant, expected in [('2026-10-14T12:20:00+02:00', '2026-10-14'),
+                          ('2026-10-19T15:30:00+02:00', '2026-10-19'),
+                          ('2026-09-30T16:59:59+02:00', '2026-09-30'),
+                          ('2026-09-30T17:00:00+02:00', '2026-10-01'),
+                          ('2026-12-31T16:59:59+01:00', '2026-12-31'),
+                          ('2026-12-31T17:00:00+01:00', '2027-01-01'),
                           ('2026-10-25T01:30:00+00:00', '2026-10-25')]:
     cases.append((datetime.fromisoformat(instant), datetime.fromisoformat(expected).date()))
 
@@ -51,7 +55,7 @@ with TestClient(editor.app) as client:
     for day in ('2026-10-14', '2026-10-15', '2026-10-16'):
         response = client.post('/kalender-toevoegen', data={'date': day, 'lines': 'Les op ' + day}, follow_redirects=False)
         assert response.status_code == 303
-    for day, hour, minute in [(14, 12, 20), (15, 15, 15)]:
+    for day, hour, minute in [(14, 17, 0), (15, 17, 0)]:
         cutoff = datetime(2026, 10, day, hour, minute, tzinfo=editor.core.TZ)
         Clock.instant = cutoff - timedelta(seconds=1)
         before = client.get('/smartschool-calendar')
@@ -93,4 +97,4 @@ for (const [instant, expected] of input.cases) {
 '''
 subprocess.run(['node', '-e', node_test], input=json.dumps({'script': javascript,
     'cases': [(instant.isoformat(), expected.isoformat()) for instant, expected in cases]}), text=True, check=True)
-print('TCH_ROLLOVER_SMOKE_TEST=PASS (27 time cases, response cache and open-tab script)')
+print(f'TCH_ROLLOVER_SMOKE_TEST=PASS ({len(cases)} time cases, response cache and open-tab script)')
