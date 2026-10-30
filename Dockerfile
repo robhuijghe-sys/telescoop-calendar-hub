@@ -29,3 +29,6 @@ RUN python tests/day_cards_smoke.py
 RUN python tests/month_focus_smoke.py
 
 RUN python tests/section_editor_smoke.py
+
+RUN python tests/halloween_smoke.py
+

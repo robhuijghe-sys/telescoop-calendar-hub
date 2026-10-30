@@ -28,8 +28,9 @@ from app.day_order import is_replacement
 from app.calendar_dynamic import CATEGORY_COLORS, _times_to_utc, infer_category
 from app.rich_editor import editor, EDITOR_CSS, fragment_text, reshape_html, inline_html, without_bold, flatten_lists
 from app.school_theme import themed_document
+from app.halloween_theme import halloween_document
 
-BUILD = 'railway-editor-20261019-schoolday-1700'
+BUILD = 'railway-editor-20261030-halloween'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -359,6 +360,7 @@ def calendar(request: Request):
             doc = render_calendar(sys.modules[__name__], hide_past=True, visible_from=visible_from)
             doc = without_bold(doc).replace('</style>', FONT_CSS + '.wrap,.wrap *{font-weight:400!important}' + '</style>', 1)
             doc = doc.replace('</body>', ROLLOVER_SCRIPT + '</body>')
+            doc = halloween_document(doc, now)
             cache.update(key=key, doc=doc, etag='"' + hashlib.sha256(doc.encode()).hexdigest() + '"')
         doc, etag = cache['doc'], cache['etag']
     headers = {'ETag': etag, 'Cache-Control': 'no-cache, must-revalidate', 'X-Calendar-Version': BUILD}
