@@ -32,3 +32,5 @@ RUN python tests/section_editor_smoke.py
 
 RUN python tests/halloween_smoke.py
 
+RUN python tests/christmas_smoke.py
+
