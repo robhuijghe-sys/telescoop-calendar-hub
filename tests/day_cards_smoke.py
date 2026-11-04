@@ -48,6 +48,14 @@ with TestClient(app) as c:
     css=doc.select_one('style').get_text()
     assert 'grid-template-columns:128px' in css and 'white-space:nowrap' in css
     assert '.panel.practical{border-color:#68991C}.practical h3{color:#68991C}' in css
+    # Existing purple-pink meeting gradient now travels slowly without changing content.
+    meeting_css = css.split('.panel.meeting{', 1)[1].split('}', 1)[0]
+    assert 'linear-gradient(115deg,#A50092 0%,#DE00C4 25%,#ED60E1 47%,#CA08BC 68%,#94008F 100%) border-box' in meeting_css
+    assert 'background-size:100% 100%,240% 240%' in meeting_css
+    assert 'animation:stage-border-flow 24s ease-in-out infinite alternate' in meeting_css
+    assert 'html .wrap .panel.meeting{animation:none;background-position:0 0,45% 50%}' in css
+    from app.day_cards import scoped_css
+    assert '.calendar-preview .panel.meeting{animation:none;background-position:0 0,45% 50%}' in scoped_css('.calendar-preview')
     assert '.item-text,.item-text *,.stage-item,.stage-item *,.stage-note,.stage-note *{color:#000000!important}' in css
     assert not any('color:' in n['style'] for n in doc.select('.panel [style]'))
     assert 'border-bottom:1px solid #edf0f5' not in css
