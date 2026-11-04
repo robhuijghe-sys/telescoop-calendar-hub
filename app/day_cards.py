@@ -72,8 +72,8 @@ html .wrap .panel.stage{
   box-shadow:0 0 0 .5px rgba(234,169,48,.10),
              0 0 6px rgba(72,148,201,.14),
              0 0 8px rgba(245,189,66,.10);
-  animation:stage-border-flow 8s ease-in-out infinite alternate,
-            stage-border-glow 2.8s ease-in-out infinite alternate;
+  animation:stage-border-flow 24s ease-in-out infinite alternate,
+            stage-border-glow 6s ease-in-out infinite alternate;
 }
 """
 
