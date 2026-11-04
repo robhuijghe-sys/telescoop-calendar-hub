@@ -55,6 +55,54 @@ CSS += """
 """
 
 
+# Gold / oxygen-blue metallic outline for the Stages panel only.
+# The content remains white (or keeps its seasonal background) and readable.
+STAGE_FRAME_CSS = """
+html .wrap .panel.stage{
+  --stage-fill:#fff;
+  border:2px solid transparent;
+  background:
+    linear-gradient(var(--stage-fill),var(--stage-fill)) padding-box,
+    linear-gradient(120deg,
+      #8A5F25 0%,#EAA930 12%,#F5BD42 20%,#FFF4C5 25%,
+      #93E1F7 35%,#4894C9 45%,#D8F7FF 53%,
+      #EAA930 65%,#FFE8A1 72%,#296D9A 85%,#93E1F7 94%,#EAA930 100%) border-box;
+  background-size:100% 100%,240% 240%;
+  background-position:0 0,0% 50%;
+  box-shadow:0 0 0 1px rgba(234,169,48,.12),
+             0 0 10px rgba(72,148,201,.18),
+             0 0 14px rgba(245,189,66,.13);
+  animation:stage-border-flow 8s ease-in-out infinite alternate,
+            stage-border-glow 2.8s ease-in-out infinite alternate;
+}
+html.christmas-2026 .wrap .panel.stage{--stage-fill:#eff8f5}
+html.halloween-2026 .wrap .panel.stage{--stage-fill:#f5f0fc}
+"""
+
+# Global keyframes must not be prefixed by scoped_css (used for the edit preview).
+STAGE_FRAME_MOTION_CSS = """
+@keyframes stage-border-flow{
+  from{background-position:0 0,0% 50%}
+  to{background-position:0 0,100% 50%}
+}
+@keyframes stage-border-glow{
+  from{box-shadow:0 0 0 1px rgba(234,169,48,.11),
+                   0 0 8px rgba(72,148,201,.14),
+                   0 0 12px rgba(245,189,66,.10)}
+  to{box-shadow:0 0 0 1px rgba(147,225,247,.28),
+                 0 0 15px rgba(72,148,201,.30),
+                 0 0 19px rgba(245,189,66,.22)}
+}
+@media(prefers-reduced-motion:reduce){
+  html .wrap .panel.stage{animation:none;background-position:0 0,45% 50%}
+}
+@media print{
+  html .wrap .panel.stage{animation:none;box-shadow:none;background-position:0 0,45% 50%}
+}
+"""
+CSS += STAGE_FRAME_CSS + STAGE_FRAME_MOTION_CSS
+
+
 def month_header(month):
     """Use each month's established hue, darkened behind accessible live text."""
     color = MONTH_PALETTES[month][0]
@@ -103,7 +151,8 @@ def scoped_css(scope):
             else:
                 scoped.append(scope+' '+selector)
         return ','.join(scoped)+'{'+declarations+'}'
-    return re.sub(r'([^{}]+)\{([^{}]*)\}',rule,CSS)
+    scoped = re.sub(r'([^{}]+)\{([^{}]*)\}', rule, CSS.replace(STAGE_FRAME_MOTION_CSS, ''))
+    return scoped + STAGE_FRAME_MOTION_CSS.replace('html .wrap .panel.stage', scope + ' .panel.stage')
 
 
 def emphasize_classes(rich):
