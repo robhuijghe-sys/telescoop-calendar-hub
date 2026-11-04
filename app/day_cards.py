@@ -60,7 +60,7 @@ CSS += """
 STAGE_FRAME_CSS = """
 html .wrap .panel.stage{
   --stage-fill:#fff;
-  border:2px solid transparent;
+  border:1px solid transparent;
   background:
     linear-gradient(var(--stage-fill),var(--stage-fill)) padding-box,
     linear-gradient(120deg,
@@ -69,9 +69,9 @@ html .wrap .panel.stage{
       #EAA930 65%,#FFE8A1 72%,#296D9A 85%,#93E1F7 94%,#EAA930 100%) border-box;
   background-size:100% 100%,240% 240%;
   background-position:0 0,0% 50%;
-  box-shadow:0 0 0 1px rgba(234,169,48,.12),
-             0 0 10px rgba(72,148,201,.18),
-             0 0 14px rgba(245,189,66,.13);
+  box-shadow:0 0 0 .5px rgba(234,169,48,.10),
+             0 0 6px rgba(72,148,201,.14),
+             0 0 8px rgba(245,189,66,.10);
   animation:stage-border-flow 8s ease-in-out infinite alternate,
             stage-border-glow 2.8s ease-in-out infinite alternate;
 }
@@ -84,12 +84,12 @@ STAGE_FRAME_MOTION_CSS = """
   to{background-position:0 0,100% 50%}
 }
 @keyframes stage-border-glow{
-  from{box-shadow:0 0 0 1px rgba(234,169,48,.11),
-                   0 0 8px rgba(72,148,201,.14),
-                   0 0 12px rgba(245,189,66,.10)}
-  to{box-shadow:0 0 0 1px rgba(147,225,247,.28),
-                 0 0 15px rgba(72,148,201,.30),
-                 0 0 19px rgba(245,189,66,.22)}
+  from{box-shadow:0 0 0 .5px rgba(234,169,48,.09),
+                   0 0 5px rgba(72,148,201,.11),
+                   0 0 7px rgba(245,189,66,.08)}
+  to{box-shadow:0 0 0 .5px rgba(147,225,247,.22),
+                 0 0 9px rgba(72,148,201,.22),
+                 0 0 11px rgba(245,189,66,.16)}
 }
 @media(prefers-reduced-motion:reduce){
   html .wrap .panel.stage{animation:none;background-position:0 0,45% 50%}
