@@ -75,8 +75,6 @@ html .wrap .panel.stage{
   animation:stage-border-flow 8s ease-in-out infinite alternate,
             stage-border-glow 2.8s ease-in-out infinite alternate;
 }
-html.christmas-2026 .wrap .panel.stage{--stage-fill:#eff8f5}
-html.halloween-2026 .wrap .panel.stage{--stage-fill:#f5f0fc}
 """
 
 # Global keyframes must not be prefixed by scoped_css (used for the edit preview).
