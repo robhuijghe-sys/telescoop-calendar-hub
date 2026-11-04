@@ -77,3 +77,6 @@ html.halloween-2026,
   .halloween-cat { width: 100px; height: 60px; bottom: 5px; }
 }
 @media print { #halloween-decorations,#halloween-motion { display: none; } #halloween-hero { break-inside: avoid; } }
+
+/* Preserve the Halloween stage fill behind its gold/oxygen-blue border. */
+html.halloween-2026 .wrap .panel.stage { --stage-fill: #f5f0fc; }
