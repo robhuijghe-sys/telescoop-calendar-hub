@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+from datetime import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -26,6 +27,8 @@ from app.public_calendar import app
 import app.main as core
 
 with TestClient(app) as client:
+    # The public calendar only displays the current and coming months.
+    displayed_date = datetime.now(core.TZ).date().replace(day=12).isoformat()
     r = client.get("/", follow_redirects=False)
     assert r.status_code == 200
     assert "Geen login nodig" in r.text
@@ -50,7 +53,7 @@ with TestClient(app) as client:
         "/public/create",
         data={
             "title": "Teamvergadering",
-            "date": "2026-10-12",
+            "date": displayed_date,
             "start_time": "15:30",
             "end_time": "16:30",
             "all_day": "0",
