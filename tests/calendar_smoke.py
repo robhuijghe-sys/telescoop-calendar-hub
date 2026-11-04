@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+from datetime import datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -40,19 +41,22 @@ with TestClient(app) as client:
     )
     check(r.status_code == 303, "login must work")
 
+    # Preview starts at the current month, so test dates must move with time.
+    sample_month = datetime.now(core.TZ).strftime('%Y-%m')
+
     # Untimed parent item: must be accepted and auto-classified green.
     r = client.post(
         "/events/create",
         data={
             "title": "Oudercontact L1",
-            "date": "2026-10-12",
+            "date": f"{sample_month}-01",
             "start_time": "",
             "end_time": "",
             "all_day": "1",
             "category": "auto",
             "location": "",
             "description": "",
-            "source_prompt": "Voeg oudercontact L1 toe op 12 oktober",
+            "source_prompt": "Voeg oudercontact L1 toe",
         },
         follow_redirects=False,
     )
@@ -63,7 +67,7 @@ with TestClient(app) as client:
         "/events/create",
         data={
             "title": "Zorgoverleg GR3",
-            "date": "2026-10-13",
+            "date": f"{sample_month}-02",
             "start_time": "08:45",
             "end_time": "09:35",
             "category": "auto",
@@ -80,7 +84,7 @@ with TestClient(app) as client:
         "/events/create",
         data={
             "title": "ZoCo afwezig",
-            "date": "2026-10-14",
+            "date": f"{sample_month}-03",
             "start_time": "09:00",
             "end_time": "11:00",
             "category": "auto",
