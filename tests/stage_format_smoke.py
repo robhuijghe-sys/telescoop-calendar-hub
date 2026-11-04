@@ -35,6 +35,15 @@ with TestClient(app) as client:
     con.close()
     response = client.get('/smartschool-calendar')
     soup = BeautifulSoup(response.text, 'html.parser')
+    # Gold/oxygen-blue border is a visual-only effect, including the editor view.
+    styles = soup.select_one('style').get_text()
+    assert '#EAA930' in styles and '#93E1F7' in styles
+    assert 'stage-border-flow' in styles and 'stage-border-glow' in styles
+    assert 'prefers-reduced-motion:reduce' in styles
+    from app.day_cards import scoped_css
+    preview_styles = scoped_css('.calendar-preview')
+    assert '@keyframes stage-border-flow' in preview_styles
+    assert '.calendar-preview .panel.stage{animation:none' in preview_styles
     expected = 'Imane K0K1 van 8u30 tot 12u40'
     for selector in ('.calendar-day',):
         view = soup.select_one(selector)
