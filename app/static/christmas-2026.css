@@ -85,3 +85,6 @@ html.christmas-2026,
   .christmas-rudolph { width: 114px; height: 86px; bottom: 5px; }
 }
 @media print { #christmas-decorations,#christmas-motion { display: none; } #christmas-hero { break-inside: avoid; } }
+
+/* Preserve the Christmas stage fill behind its gold/oxygen-blue border. */
+html.christmas-2026 .wrap .panel.stage { --stage-fill: #eff8f5; }
