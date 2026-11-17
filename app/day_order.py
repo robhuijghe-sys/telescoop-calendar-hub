@@ -117,29 +117,17 @@ def ordered_fragments(fragments, style_meetings=False):
             attached.add(i)
     stages = [i for i in stages if i not in attached]
     bottom = set(meetings) | set(stages) | attached
-    absent = [i for i,t in enumerate(texts) if i not in bottom and ABSENCE.search(t)]
-    groups = {i: [] for i in absent}
-    rest, loose = [], []
-    for i,text in enumerate(texts):
-        if i in groups or i in bottom:
-            continue
-        if not REPLACEMENT.search(text):
-            rest.append(i)
-            continue
-        # Prefer an explicit reference to the absent person, then source proximity.
-        target = re.search(r'\bvervang\w*\s+([\wÀ-ÿ-]+)', text, re.I)
-        matches = [a for a in absent if target and re.search(r'\b'+re.escape(target[1])+r'\b', texts[a], re.I)]
-        preceding = [a for a in absent if a < i]
-        owner = matches[0] if matches else (preceding[-1] if preceding else (absent[0] if len(absent)==1 else None))
-        if owner is None:
-            loose.append(i)
-        else:
-            groups[owner].append(i)
-    order = []
-    for a in absent:
-        order.append(a)
-        order.extend(sorted(groups[a], key=lambda i: time_key(texts[i])))
-    order.extend(sorted(loose, key=lambda i: time_key(texts[i])))
+    # Absences always lead the calendar, independently of who covers them.
+    # After that, sort replacements by their first lesson or clock time.
+    # Keep unrelated program items and their existing chronological grouping.
+    absent = [i for i, t in enumerate(texts)
+              if i not in bottom and ABSENCE.search(t) and not REPLACEMENT.search(t)]
+    replacements = [i for i, t in enumerate(texts)
+                    if i not in bottom and i not in absent
+                    and (REPLACEMENT.search(t) or SWAP.search(t))]
+    rest = [i for i in range(len(texts))
+            if i not in bottom and i not in absent and i not in replacements]
+    order = absent + sorted(replacements, key=lambda i: meeting_time_key(texts[i]))
     order.extend(sorted(rest, key=lambda i: (fragments[i] not in reading_blocks, time_key(texts[i]))))
     result = [fragments[i] for i in order]
     for meeting in sorted(meetings, key=lambda i: meeting_time_key(texts[i])):
