@@ -227,27 +227,8 @@ def setup_editor():
     from app.research_cycle_2026 import apply_research_cycle
     apply_research_cycle()
 
-    # TEMP: focused read-only snapshot before adding Ananda absences and substitutes.
-    inspect = core.db()
-    try:
-        dates = ("2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23", "2026-11-24", "2026-12-01")
-        placeholders = ",".join("?" for _ in dates)
-        raw = [dict(r) for r in inspect.execute(
-            "SELECT id,date_local,title,activity_type,whole_day,version "
-            "FROM editor_lines WHERE deleted=0 AND date_local IN (" + placeholders + ") ORDER BY date_local,id", dates
-        )]
-        focused = [r for r in raw if r["date_local"] == "2026-11-20" or "ananda" in r["title"].casefold()]
-        ev = [dict(r) for r in inspect.execute("SELECT id,title,start_at,category FROM events WHERE visible_in_embed=1")]
-        ev = [r for r in ev if r["start_at"][:10] in dates and (r["start_at"][:10] == "2026-11-20" or "ananda" in r["title"].casefold())]
-        layout = json.loads(inspect.execute("SELECT value FROM settings WHERE key='editor_layout'").fetchone()[0])
-        displayed = sorted({r["date"] for r in layout.get("entries", []) if r["date"] in dates})
-        hidden = [dict(r) for r in inspect.execute("SELECT date_local,hidden FROM editor_days WHERE date_local IN (" + placeholders + ")", dates)]
-        print("ANANDA_CALENDAR_INSPECTION " + json.dumps(
-            {"focused": focused, "events": ev, "displayed_existing_dates": displayed, "hidden": hidden,
-             "counts": {d: sum(row["date_local"] == d for row in raw) for d in dates}},
-            ensure_ascii=False), flush=True)
-    finally:
-        inspect.close()
+    from app.ananda_absences_2026 import add_ananda_calendar
+    add_ananda_calendar()
     if os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1':
         from app.display_format import check_calendar
         import sys
