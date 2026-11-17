@@ -4,10 +4,10 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from app.day_order import ordered_fragments, time_key
 rows=['15u30: vergadering','09:00: uitstap','Lien AFW','vakgroep: 16u00','13:20–14:10: Eline vervangt Lien','08:45–09:35: geen turnen','Directie afwezig','VM: K3: lezen','hele dag: project','NM: museum','Zonder uur']
 result=ordered_fragments(rows)
-assert result[:5]==['Lien AFW','08:45–09:35: geen turnen','13:20–14:10: Eline vervangt Lien','Directie afwezig','hele dag: project']
+assert result[:5]==['Lien AFW','Directie afwezig','08:45–09:35: geen turnen','13:20–14:10: Eline vervangt Lien','hele dag: project']
 assert result[5:]==['VM: K3: lezen','09:00: uitstap','NM: museum','Zonder uur','15u30: vergadering','vakgroep: 16u00']
 rows=['Eline afwezig','9.35–10.00 LIST L6 → Christophe','8.45–9.10 LIST L5 → Milla','Lien afw','11u: Sofie vervangt Eline']
-assert ordered_fragments(rows)==[rows[0],rows[2],rows[1],rows[4],rows[3]]
+assert ordered_fragments(rows)==[rows[0],rows[3],rows[2],rows[1],rows[4]]
 rich=['<a href="https://example.org">Uitstap</a>','<span style="color:red">Rudi afw</span>'];assert ordered_fragments(rich)==rich[::-1]
 assert time_key('12.40-13.20u spel')==760
 assert time_key('K3 uitstap 2026')==1440
@@ -33,3 +33,11 @@ assert time_key('3de en 4de lesuur: GR3 + K3')==580
 assert is_replacement('Marinela vervangt Milla (GWP GR2)')
 assert not is_replacement('Milla afwezig: GWP GR2')
 print('WORKSHOP_GROUPS_QC=PASS')
+
+# Independent absence grouping: do not nest a substitute below one absence.
+rows=['DAG: Chantal afwezig','13u00 - 13u20: KS - Marinela vervangt Guler',
+      'DAG: Ananda afwezig','4de lesuur: L2 - Helena vervangt Ananda',
+      '2de en 3de lesuur: GR3 - Eline vervangt Ananda',
+      '5de lesuur: L2 - Helena vervangt Ananda']
+assert ordered_fragments(rows)==[rows[0],rows[2],rows[4],rows[3],rows[1],rows[5]]
+print('ABSENCES_FIRST_REPLACEMENTS_CHRONOLOGICAL=PASS')
