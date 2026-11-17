@@ -7,7 +7,7 @@ from difflib import SequenceMatcher
 from bs4 import BeautifulSoup, NavigableString
 
 from app.calendar_dynamic import MONTH_NAMES, MONTH_PALETTES, SEASONS, _event_line, category_for_row
-from app.day_order import ABSENCE, AGENDA, is_meeting, is_replacement, ordered_fragments
+from app.day_order import ABSENCE, AGENDA, REPLACEMENT, is_meeting, is_replacement, meeting_time_key, ordered_fragments
 from app.rich_editor import reshape_html, bullet_body, bullet_lists
 
 
@@ -101,6 +101,8 @@ STAGE_FRAME_MOTION_CSS = """
 }
 """
 CSS += STAGE_FRAME_CSS + STAGE_FRAME_MOTION_CSS
+# Highlight only the substitute's name; regular calendar text stays unbolded.
+CSS += '.wrap .panel.absence .replacement-person{font-weight:700!important}'
 
 
 def month_header(month):
@@ -199,6 +201,71 @@ def retain_metadata(s, originals, fragments):
     return result
 
 
+
+# Recognition is intentionally limited to replacement lines, not absent colleagues.
+PERSON_NAME = r"[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[’'-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)*(?:\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[’'-][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)*)?"
+SCHOOL_GROUP = r"(?:GR[1-3]|KS|K0K1|K[0-3]|L[1-6])"
+SUBSTITUTE_PATTERNS = (
+    re.compile(rf"\b{SCHOOL_GROUP}\b\s*[-–]\s*(?P<person>{PERSON_NAME})(?=\s*(?:\(|vervangt\b|neemt\b|$))"),
+    re.compile(rf"\b{SCHOOL_GROUP}\b\s*[-–]\s*[^:()\n]+:\s*(?P<person>{PERSON_NAME})(?=\s*(?:\(|$))"),
+    re.compile(rf"\b(?P<person>{PERSON_NAME})\s+(?=vervangt\b|neemt\b.{0,80}\bover\b)"),
+    re.compile(rf"\b(?:vervangen|overgenomen|overname)\s+door\s+(?P<person>{PERSON_NAME})(?=\s*(?:\(|$|voor\b))", re.I),
+)
+
+
+def emphasize_substitute(markup, source):
+    """Wrap the replacing staff member's name in a presentation-only span."""
+    if ABSENCE.search(source) and not REPLACEMENT.search(source):
+        return markup
+    if not (REPLACEMENT.search(source) or re.search(rf"\b{SCHOOL_GROUP}\b\s*[-–]", source, re.I)):
+        return markup
+    soup = BeautifulSoup(markup, 'html.parser')
+    nodes = list(soup.find_all(string=True))
+    value = ''.join(str(n) for n in nodes)
+    person = next((m.span('person') for pattern in SUBSTITUTE_PATTERNS
+                   if (m := pattern.search(value))), None)
+    if person is None:
+        return markup
+    start, stop = person
+    offset = 0
+    for node in nodes:
+        raw = str(node)
+        lo, hi = max(0, start-offset), min(len(raw), stop-offset)
+        if lo < hi:
+            if lo:
+                node.insert_before(NavigableString(raw[:lo]))
+            emphasis = soup.new_tag('span', attrs={'class': 'replacement-person'})
+            emphasis.string = raw[lo:hi]
+            node.insert_before(emphasis)
+            if hi < len(raw):
+                node.insert_before(NavigableString(raw[hi:]))
+            node.extract()
+        offset += len(raw)
+    return str(soup)
+
+
+def sorted_absences(plain, items):
+    """First all absences, then substitutions by period; keep event notes attached."""
+    groups = []
+    for item in items:
+        if item.get('description') and groups and groups[-1][0]['record'] == item['record']:
+            groups[-1].append(item)
+        else:
+            groups.append([item])
+
+    def key(group):
+        item = group[0]
+        value = plain(item['rich'])
+        if ABSENCE.search(value) and not REPLACEMENT.search(value):
+            return (0, 0)
+        if REPLACEMENT.search(value) or item['type'] in ('waarschuwing', 'vervanging'):
+            return (1, meeting_time_key(value))
+        return (2, meeting_time_key(value))
+
+    return [item for group in sorted(groups, key=key) for item in group]
+
+
+
 def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=None, editor_data=False, visible_from=None):
     selected = set(dates) if dates is not None else None
     owned = connection is None
@@ -291,6 +358,7 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
         extra = ' absence-text' if key=='absence' and ABSENCE.search(original) else (' training-text' if key=='absence' and 'nascholing' in original.lower() else '')
         body_html = s.clean_html(reshape_html(rich,body)) if match else rich
         if key=='activities':body_html=emphasize_classes(body_html)
+        if key=='absence':body_html=emphasize_substitute(body_html, original)
         # The time column is always present, aligning untimed rows as well.
         custom=' data-custom-format="true"' if item['custom'] else ''
         return f'<div class="calendar-row{extra}"><span class="moment">{html.escape(label)}</span><div class="item-text"{custom}>{body_html}</div></div>'
@@ -372,6 +440,7 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
                             item['group']=buckets['meeting'][-1]['group']
                             item['meeting_class']=buckets['meeting'][-1]['meeting_class']
                         buckets[key].append(item);previous=key
+            buckets['absence'] = sorted_absences(s.plain, buckets['absence'])
             activities=buckets['activities']
             heading=next((i for i,item in enumerate(activities) if re.fullmatch(r'digitale wolven\s*:?',s.plain(item['rich']),re.I)),None)
             slot=next((i for i,item in enumerate(activities) if re.search(r'\b(?:Panda|Scratch|Wunderkind|Digitale wolven)\b',s.plain(item['rich']),re.I) and i!=heading),None)
