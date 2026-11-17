@@ -224,22 +224,12 @@ def setup_editor():
     con.close()
     from app.latest_source import apply_latest_source
     apply_latest_source(original_snapshot, split_lines, clean_html, plain, safe_url)
+    from app.research_cycle_2026 import apply_research_cycle
+    apply_research_cycle()
     if os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1':
         from app.display_format import check_calendar
         import sys
         check_calendar(sys.modules[__name__], 'startup')
-    # Temporary read-only inventory for rescheduling the research cycle.
-    # Restricted to labels mentioning research; other calendar data stays private.
-    probe = core.db()
-    try:
-        candidates = [{'kind': 'basis', 'id': row['id'], 'date': row['date_local'], 'title': row['title']}
-                      for row in probe.execute("SELECT id,date_local,title FROM editor_lines WHERE deleted=0 AND date_local >= '2026-11-17' AND lower(title) LIKE '%onderzoek%' ORDER BY date_local,id")]
-        candidates.extend({'kind': 'event', 'id': row['id'], 'date': datetime.fromisoformat(row['start_at']).astimezone(core.TZ).date().isoformat(), 'title': row['title']}
-                          for row in probe.execute("SELECT id,start_at,title FROM events WHERE visible_in_embed=1 AND lower(title) LIKE '%onderzoek%' ORDER BY start_at,id")
-                          if datetime.fromisoformat(row['start_at']).astimezone(core.TZ).date().isoformat() >= '2026-11-17')
-        print('RESEARCH_CYCLE_CANDIDATES ' + json.dumps(candidates, ensure_ascii=False), flush=True)
-    finally:
-        probe.close()
 
 
 def edited_snapshot():
