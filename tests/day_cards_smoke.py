@@ -109,5 +109,45 @@ with TestClient(app) as c:
     assert body.find(recursive=False).get('class')==['panel','absence']
     assert card.select_one('.day-columns > .day-stages > .stage') is not None
     assert any(r['title']=='Stage: Noor bij K2' for r in rows_all())
+
+    # A real-world Friday: three absences stay above every replacement,
+    # even when records were entered in a mixed order or use lesson periods.
+    friday=(datetime.now(core.TZ).date()+timedelta(days=3)).isoformat()
+    entries=[
+        'DAG: Chantal afwezig',
+        'DAG: Rob afwezig',
+        '13u00 - 13u20: KS - Marinela vervangt Guler voor toezicht (speelplaats)',
+        'DAG: Ananda afwezig',
+        '2de en 3de lesuur: GR3 - Eline (vervangt Ananda)',
+        '4de lesuur: L2 - Helena (NED, vervangt Ananda)',
+        '5de lesuur: L2 - Helena (NED, vervangt Ananda)',
+        '6de lesuur: L1 - Axelle (WO thema, vervangt Ananda)',
+        '3de lesuur: L4 - Frans: Christophe',
+        '4de lesuur: L4 - Spelling: Milla (50 min, waarvan 25 min digitaal)',
+    ]
+    for entry in entries:
+        assert c.post('/kalender-toevoegen',data=dict(
+            date=friday,category='waarschuwing',lines=entry
+        ),follow_redirects=False).status_code==303
+    card=document(c).select_one('[data-calendar-date="'+friday+'"]')
+    panel=card.select_one('.panel.absence')
+    lines=panel.select('.calendar-row')
+    values=[r.select_one('.item-text').get_text(' ',strip=True) for r in lines]
+    assert len(values)==len(entries),values
+    assert ['Chantal afwezig','Rob afwezig','Ananda afwezig']==values[:3],values
+    periods=[r.select_one('.moment').get_text(' ',strip=True) for r in lines]
+    assert periods[3:]==[
+        '2de en 3de lesuur','3de lesuur','4de lesuur','4de lesuur',
+        '13u00 - 13u20','5de lesuur','6de lesuur'
+    ],periods
+    names=[r.select_one('.replacement-person').get_text(' ',strip=True)
+           if r.select_one('.replacement-person') else None for r in lines]
+    assert names==[None,None,None,'Eline','Christophe','Helena','Milla',
+                   'Marinela','Helena','Axelle'],names
+    assert '.wrap .panel.absence .replacement-person{font-weight:700!important}' in document(c).select_one('style').get_text()
+    assert not card.select('b,strong')
+    assert not any('Ananda'==span.get_text() or 'Guler'==span.get_text()
+                   for span in card.select('.replacement-person'))
+
 print('TCH_DAY_CARDS_SMOKE_TEST=PASS')
 temp.cleanup()
