@@ -49,6 +49,10 @@ def inspect(con):
 
 
 def add_ananda_calendar():
+    # Build-time tests use isolated temporary databases. Only the mounted
+    # persistent production data directory may receive this one-time change.
+    if not Path(core.DB_PATH).resolve().is_relative_to(Path('/data')):
+        return
     con = core.db()
     try:
         if con.execute("SELECT 1 FROM settings WHERE key=?", (MARKER,)).fetchone():
