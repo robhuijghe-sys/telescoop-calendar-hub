@@ -229,6 +229,8 @@ def setup_editor():
 
     from app.ananda_absences_2026 import add_ananda_calendar
     add_ananda_calendar()
+    from app.parent_meeting_buffers_2027 import apply_parent_meeting_buffers
+    apply_parent_meeting_buffers()
     if os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1':
         from app.display_format import check_calendar
         import sys
