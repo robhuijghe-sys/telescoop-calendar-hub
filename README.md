@@ -96,3 +96,7 @@ Maak in Instellingen een persoonlijke API-key. De connectorbeschrijving is besch
 `/connector-openapi.json`
 
 De API gebruikt `Authorization: Bearer tch_...`.
+
+## Staking maandag 23 november 2026
+
+Een eenmalige, transactionele kalendermigratie in `app/strike_nov23_2026.py` maakt maandag 23 november 2026 vrij en toont uitsluitend **School gesloten wegens staking**. De vakgroep kleuter van 15.30–17.00 uur, inclusief de agenda over bakjestijd, voorkennis en woordenschatonderwijs, verhuist met behoud van oorspronkelijke gegevens naar maandag 30 november. De overige afspraken van 23 november worden in de publieke kalender verborgen, maar blijven herstelbaar in de databaselog en SQLite-back-up. De wijzigingen worden alleen op `/data` uitgevoerd en zijn eenmalig.
