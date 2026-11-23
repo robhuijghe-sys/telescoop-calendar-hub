@@ -64,7 +64,9 @@ with TestClient(editor.app) as client:
     assert client.get('/smartschool-calendar', headers={'If-None-Match': festive.headers['etag']}).status_code == 304
     for route in ('/', '/kalender-wijzigen', '/kalender-dag/2026-12-28'):
         assert 'christmas-' not in client.get(route).text
-    assert client.get('/calendar-editor/christmas-school-2026.webp').status_code == 200
+    artwork = client.get('/calendar-editor/christmas-school-2026.webp')
+    assert artwork.status_code == 200
+    assert artwork.headers['content-type'] == 'image/webp'
     Clock.instant = datetime.fromisoformat('2026-12-26T00:00:00+01:00')
     after = client.get('/smartschool-calendar', headers={'If-None-Match': festive.headers['etag']})
     assert after.status_code == 200
