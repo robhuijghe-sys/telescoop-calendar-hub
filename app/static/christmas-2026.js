@@ -5,15 +5,15 @@
   const endsAt = Date.parse(end);
   const root = document.documentElement;
   const teachers = {
-    ananda: 'vrolijke', annamarie: 'hartelijke', ariane: 'warme', axelle: 'creatieve',
-    chantal: 'hartelijke', charlotte: 'stralende', christophe: 'enthousiaste',
-    eline: 'vrolijke', güler: 'warme', guler: 'warme', hanne: 'goedgemutste',
-    helena: 'zorgzame', jorge: 'vrolijke', kathy: 'hartelijke', kim: 'creatieve',
-    lien: 'zorgzame', liese: 'stralende', magda: 'warme', maïlis: 'vrolijke',
-    mailis: 'vrolijke', marinela: 'enthousiaste', mila: 'creatieve', milla: 'creatieve',
-    noëmi: 'stralende', noemi: 'stralende', rob: 'goedgemutste', rudi: 'hartelijke',
-    silke: 'enthousiaste', sofie: 'zorgzame', steven: 'vrolijke',
-    veronica: 'warme', wout: 'goedgemutste'
+    ananda: 'feestelijke', annamarie: 'kerstklare', ariane: 'kerstvierende', axelle: 'fonkelende',
+    chantal: 'kerstklare', charlotte: 'fonkelende', christophe: 'kerstklare',
+    eline: 'kerstvierende', güler: 'feestelijke', guler: 'feestelijke', hanne: 'kerstvierende',
+    helena: 'fonkelende', jorge: 'feestelijke', kathy: 'kerstklare', kim: 'kerstvierende',
+    lien: 'feestelijke', liese: 'kerstklare', magda: 'fonkelende', maïlis: 'feestelijke',
+    mailis: 'feestelijke', marinela: 'kerstvierende', mila: 'kerstklare', milla: 'kerstklare',
+    noëmi: 'fonkelende', noemi: 'fonkelende', rob: 'kerstklare', rudi: 'kerstvierende',
+    silke: 'kerstklare', sofie: 'feestelijke', steven: 'kerstvierende',
+    veronica: 'feestelijke', wout: 'fonkelende'
   };
   const names = Object.keys(teachers).flatMap(name => [name, name.normalize('NFD')]);
   const nameTokens = [...new Set(['anna[ \\p{Pd}]?marie', ...names])];

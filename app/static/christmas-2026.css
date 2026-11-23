@@ -1,12 +1,12 @@
 html.christmas-2026,
 .christmas-2026 body {
-  background: #0c2824;
-  color: #fbf0dc;
+  background: #f6f2e9;
+  color: #274437;
 }
 
 .christmas-2026 body {
   min-height: 100vh;
-  background-image: radial-gradient(ellipse at 50% 0, #254639 0, transparent 48rem);
+  background-image: radial-gradient(ellipse at 50% 0, #fffaf0, transparent 52rem);
 }
 
 .christmas-2026 .wrap > .logo {
@@ -14,7 +14,8 @@ html.christmas-2026,
   padding: 7px 14px;
   margin: 0 auto 18px;
   border-radius: 12px;
-  background: #fff9ed;
+  border: 1px solid #e7ddca;
+  background: #fffdf7;
 }
 
 #christmas-hero {
@@ -25,10 +26,10 @@ html.christmas-2026,
   overflow: hidden;
   aspect-ratio: 3;
   margin: 0 0 16px;
-  border: 1px solid #ac9368;
+  border: 1px solid #cbb994;
   border-radius: 20px;
-  background: #112f29;
-  box-shadow: 0 16px 40px #0719158c;
+  background: #fff6e4;
+  box-shadow: 0 12px 30px #59471f17;
 }
 
 .christmas-scene, .christmas-snow {
@@ -38,7 +39,10 @@ html.christmas-2026,
 }
 
 .christmas-scene { z-index: -3; }
-.christmas-snow { z-index: -1; }
+.christmas-snow {
+  z-index: -1;
+  mask-image: linear-gradient(90deg, transparent 36%, #000 55%);
+}
 
 .christmas-art {
   display: block;
@@ -51,7 +55,7 @@ html.christmas-2026,
   position: absolute;
   inset: 0;
   z-index: -2;
-  background: linear-gradient(90deg, #081f1de0, #0b28247d 38%, transparent 57%);
+  background: linear-gradient(90deg, #fff6e4 0%, #fff6e4fa 26%, #fff6e4ef 39%, #fff6e4a8 46%, transparent 59%);
   pointer-events: none;
 }
 
@@ -59,7 +63,7 @@ html.christmas-2026,
 
 .christmas-copy .christmas-kicker {
   margin: 0 0 11px;
-  color: #ffdf9d;
+  color: #79503b;
   font-size: 12px;
   letter-spacing: .16em;
   text-transform: uppercase;
@@ -67,12 +71,11 @@ html.christmas-2026,
 
 .christmas-2026 .christmas-copy h1 {
   margin: 0;
-  color: #fff5df;
+  color: #244439;
   font-family: Georgia, 'Times New Roman', serif;
   font-size: clamp(39px, 6vw, 84px);
   line-height: .98;
   letter-spacing: -.036em;
-  text-shadow: 0 3px 20px #091f1b;
 }
 
 .christmas-copy h1 span { display: block; }
@@ -104,7 +107,7 @@ html.christmas-2026,
   background: #fff4c3;
   box-shadow: 0 0 5px 2px #ffd884, 0 0 12px 4px #ffc44e80;
   transform: translate(-50%, -50%);
-  animation: christmas-twinkle 5s var(--delay) ease-in-out infinite;
+  animation: christmas-twinkle 4.8s var(--delay) ease-in-out infinite;
 }
 
 .christmas-light:first-of-type {
@@ -135,7 +138,7 @@ html.christmas-2026,
 
 @keyframes christmas-twinkle {
   0%, 100% { opacity: .24; }
-  42% { opacity: .93; }
+  42% { opacity: 1; }
   72% { opacity: .42; }
 }
 
@@ -197,37 +200,40 @@ html.christmas-2026,
 .christmas-2026 .quick a {
   display: inline-block;
   padding: 5px 8px;
-  border: 1px solid #81947a;
+  border: 1px solid #c3cdbb;
   border-radius: 7px;
-  background: #193a31;
-  color: #fff0cc;
+  background: #fcfbf5;
+  color: #2f4c3f;
 }
 
-.christmas-2026 .quick a:hover { background: #2c5042; border-color: #ffdc9c; }
+.christmas-2026 .quick a:hover { background: #e9eee3; border-color: #8eab94; }
 .christmas-2026 .month-card { background: transparent; }
 
 .christmas-2026 .month-head {
-  background: linear-gradient(100deg, #7b2c3b, #502431) !important;
-  border: 1px solid #ac9368;
+  background: linear-gradient(100deg, #dce8db, #edf0e4) !important;
+  border: 1px solid #b6c8b5;
   border-radius: 12px;
 }
 
 .christmas-2026 .month-art {
-  opacity: .34;
-  filter: sepia(.26) saturate(.75);
+  opacity: .26;
+  filter: sepia(.22) saturate(.70);
   mask-image: linear-gradient(90deg, transparent, #000 37%);
 }
-.christmas-2026 .month-title, .christmas-2026 .month-head .season { color: #fff0d5; }
-.christmas-2026 .focus { color: #f5deaa; }
+.christmas-2026 .month-title, .christmas-2026 .month-head .season {
+  color: #244439;
+  text-shadow: none;
+}
+.christmas-2026 .focus { color: #3d5146; }
 
 .christmas-2026 .day-header {
-  background: #e7d2ac !important;
+  background: #efe7d7 !important;
   color: #233a30;
 }
 
 .christmas-2026 .calendar-day.is-today > .day-header {
-  background: #f5dfb9 !important;
-  outline: 1px solid #e4ba71;
+  background: #f5e6c7 !important;
+  outline: 1px solid #c9a46e;
   outline-offset: 2px;
 }
 
@@ -236,12 +242,12 @@ html.christmas-2026,
 .christmas-2026 .calendar-day.is-today > .day-header .today-label { color: #782c40; }
 
 .christmas-2026 .panel {
-  background: #fffaf0;
+  background: #fffdf7;
   border: 1px solid #d9c8a5;
-  box-shadow: 0 5px 18px #07191540;
+  box-shadow: 0 3px 12px #59471f0d;
 }
 
-.christmas-2026 .panel.activities { background: #fffaf0; border-color: #d9bd85; }
+.christmas-2026 .panel.activities { background: #fffdf7; border-color: #d9bd85; }
 .christmas-2026 .panel.absence { background: #fff5f3; border-color: #cb9999; }
 .christmas-2026 .panel.practical { background: #f2f7ee; border-color: #b0c49d; }
 .christmas-2026 .panel.meeting { background: #fff7f6; border-color: #d6aeb3; animation: none; }
@@ -257,7 +263,7 @@ html.christmas-2026 .wrap .panel.stage { --stage-fill: #f2f8f6; }
   padding-inline-end: .08em;
 }
 
-.christmas-2026 .empty-day { color: #ead9bb; }
+.christmas-2026 .empty-day { color: #55594d; }
 
 @media (max-width: 640px) {
   .christmas-2026 .wrap > .logo { width: 125px; margin-bottom: 12px; }
@@ -269,8 +275,9 @@ html.christmas-2026 .wrap .panel.stage { --stage-fill: #f2f8f6; }
     transform: translateX(-70%);
   }
   #christmas-hero::before {
-    background: linear-gradient(180deg, #102d27 13%, #102d27f0 22%, #102d2780 40%, transparent 59%);
+    background: linear-gradient(180deg, #fff6e4 23%, #fff6e4ec 27%, #fff6e45c 36%, transparent 49%);
   }
+  .christmas-snow { mask-image: linear-gradient(180deg, transparent 23%, #000 45%); }
   .christmas-copy { padding: 24px 20px 0; }
   .christmas-copy .christmas-kicker { font-size: 10px; margin-bottom: 8px; }
   .christmas-2026 .christmas-copy h1 { font-size: clamp(29px, 7.5vw, 42px); }
