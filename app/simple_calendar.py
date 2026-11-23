@@ -31,7 +31,7 @@ from app.school_theme import themed_document
 from app.halloween_theme import halloween_document
 from app.christmas_theme import christmas_document
 
-BUILD = 'railway-editor-20261030-christmas'
+BUILD = 'railway-editor-20261123-christmas'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape

@@ -11,9 +11,9 @@ from app.christmas_theme import christmas_active, christmas_document
 
 original = '<html lang="nl"><head></head><body><div class="links"></div>Original calendar</body></html>'
 for instant, active in [
-    ('2026-12-09T22:59:59+00:00', False),
-    ('2026-12-09T23:00:00+00:00', True),
-    ('2026-12-10T12:00:00+00:00', True),
+    ('2026-11-30T22:59:59+00:00', False),
+    ('2026-11-30T23:00:00+00:00', True),
+    ('2026-12-01T12:00:00+00:00', True),
     ('2026-12-25T22:59:59+00:00', True),
     ('2026-12-25T23:00:00+00:00', False),
     ('2027-12-10T12:00:00+01:00', False),
@@ -36,7 +36,7 @@ from fastapi.testclient import TestClient
 import app.simple_calendar as editor
 
 class Clock(datetime):
-    instant = datetime.fromisoformat('2026-12-09T23:59:59+01:00')
+    instant = datetime.fromisoformat('2026-11-30T23:59:59+01:00')
 
     @classmethod
     def now(cls, tz=None):
@@ -51,11 +51,14 @@ with TestClient(editor.app) as client:
     before = client.get('/smartschool-calendar')
     assert 'id="christmas-start-watch"' in before.text
     assert 'id="christmas-hero"' not in before.text
-    Clock.instant = datetime.fromisoformat('2026-12-10T00:00:00+01:00')
+    assert 'data-start="2026-12-01T00:00:00+01:00"' in before.text
+    Clock.instant = datetime.fromisoformat('2026-12-01T00:00:00+01:00')
     festive = client.get('/smartschool-calendar', headers={'If-None-Match': before.headers['etag']})
     assert festive.status_code == 200
     assert 'id="christmas-hero"' in festive.text
     assert 'class="christmas-rudolph"' in festive.text
+    assert 'class="christmas-light"' in festive.text
+    assert 'class="christmas-flake"' in festive.text
     assert 'id="christmas-script"' in festive.text
     assert 'halloween-' not in festive.text
     assert client.get('/smartschool-calendar', headers={'If-None-Match': festive.headers['etag']}).status_code == 304

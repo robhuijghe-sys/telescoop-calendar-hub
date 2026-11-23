@@ -1,10 +1,10 @@
-"""Display-only Christmas edition, 10–25 December 2026 in Brussels."""
+"""Display-only Christmas edition, 1–25 December 2026 in Brussels."""
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo('Europe/Brussels')
-START = datetime(2026, 12, 10, tzinfo=TZ)
+START = datetime(2026, 12, 1, tzinfo=TZ)
 END = datetime(2026, 12, 26, tzinfo=TZ)
 STATIC = Path(__file__).parent / 'static'
 CSS = (STATIC / 'christmas-2026.css').read_text()
@@ -12,28 +12,59 @@ SCRIPT = (STATIC / 'christmas-2026.js').read_text()
 
 # An already open normal calendar also picks up the theme at Belgian midnight.
 # A minute-sized timer avoids browser timeout limits for a date weeks away.
-START_WATCH = '''<script id="christmas-start-watch">
-(() => {
-  const start = Date.parse('2026-12-10T00:00:00+01:00');
-  const end = Date.parse('2026-12-26T00:00:00+01:00');
+START_WATCH = '''(() => {
+  const { start, end } = document.currentScript.dataset;
+  const startsAt = Date.parse(start);
+  const endsAt = Date.parse(end);
   let timer;
   function check() {
     clearTimeout(timer);
     const now = Date.now();
-    if (now >= start) {
+    if (now >= startsAt) {
       document.removeEventListener('visibilitychange', check);
       window.removeEventListener('pageshow', check);
       document.getElementById('christmas-start-watch')?.remove();
-      if (now < end) window.location.reload();
+      if (now < endsAt) window.location.reload();
       return;
     }
-    timer = setTimeout(check, Math.min(start - now, 60000));
+    timer = setTimeout(check, Math.min(startsAt - now, 60000));
   }
   document.addEventListener('visibilitychange', check);
   window.addEventListener('pageshow', check);
   check();
-})();
-</script>'''
+})();'''
+
+# Positions follow the star and bulbs in the 1536 × 512 illustration.
+TREE_LIGHTS = (
+    (60.2, 30.3), (59.6, 38.6), (60.7, 41.8), (59.9, 45.4),
+    (61.7, 46.4), (58.4, 50.9), (61.5, 53.4), (58.5, 56.7),
+    (59.6, 61.0), (62.6, 62.6), (57.2, 66.8), (60.2, 68.6),
+    (62.2, 70.9), (56.4, 74.1), (58.5, 77.0), (61.5, 81.2),
+    (64.1, 79.0), (57.0, 83.8),
+)
+
+
+def script_tag(element_id, script):
+    return (
+        f'<script id="{element_id}" data-start="{START.isoformat()}" '
+        f'data-end="{END.isoformat()}">{script}</script>'
+    )
+
+
+def tree_lights():
+    return ''.join(
+        f'<i class="christmas-light" style="--x:{x}%;--y:{y}%;--delay:-{(index * 7) % 19 / 4}s"></i>'
+        for index, (x, y) in enumerate(TREE_LIGHTS)
+    )
+
+
+def snowflakes():
+    positions = (4, 9, 17, 23, 28, 34, 39, 45, 49, 54, 57, 61, 63, 66, 69, 72, 76, 81, 85, 89, 94, 98)
+    return ''.join(
+        f'<i class="christmas-flake" style="--x:{x}%;--size:{2 + index % 4}px;'
+        f'--delay:{(index * 13) % 29 / 7:.2f}s;--drift:{(index % 3 - 1) * 32}px"></i>'
+        for index, x in enumerate(positions)
+    )
 
 
 def christmas_active(now=None):
@@ -43,22 +74,11 @@ def christmas_active(now=None):
 def christmas_document(document, now=None):
     local = (now if now is not None else datetime.now(TZ)).astimezone(TZ)
     if local < START:
-        return document.replace('</body>', START_WATCH + '</body>', 1)
+        return document.replace('</body>', script_tag('christmas-start-watch', START_WATCH) + '</body>', 1)
     if local >= END:
         return document
     # Only presentation changes: stored names, calendar data and editors stay intact.
-    hero = '''<section id="christmas-hero" aria-label="Kersteditie">
-      <img class="christmas-art" src="/calendar-editor/christmas-school-2026.webp" alt="" width="1536" height="512" fetchpriority="high">
-      <div class="christmas-copy"><p class="christmas-kicker">10 – 25 december · Kersteditie</p>
-      <h1>De Telescoop<br><span>fonkelt!</span></h1>
-      <p>Ho ho ho… zelfs de planning heeft een kerstmuts.</p></div>
-      <button type="button" id="christmas-motion" aria-pressed="false">Kerstpret pauzeren</button>
-    </section>'''
-    decorations = '''<div id="christmas-decorations" aria-hidden="true">
-      <span class="xm-snow xm-snow-a">❄</span><span class="xm-snow xm-snow-b">❅</span>
-      <span class="xm-snow xm-snow-c">❄</span><span class="xm-snow xm-snow-d">❅</span>
-      <span class="xm-star xm-star-a">✦</span><span class="xm-star xm-star-b">✧</span>
-      <div class="christmas-rudolph"><svg viewBox="0 0 180 135" focusable="false" aria-hidden="true">
+    rudolph = '''<div class="christmas-rudolph" aria-hidden="true"><svg viewBox="0 0 180 135" focusable="false">
         <g stroke="#f6d9a4" stroke-width="1.2" stroke-linejoin="round">
           <path class="xm-tail" d="M42 67Q23 52 20 65Q24 76 44 78" fill="#a45e30"/>
           <path class="xm-leg xm-leg-a" d="M54 77L44 118L55 119L69 79" fill="#6e3d23"/>
@@ -81,9 +101,23 @@ def christmas_document(document, now=None):
         <circle cx="157" cy="54" r="8" fill="#ef334c" stroke="#ffc8a2" stroke-width="1.3"/>
         <ellipse cx="155" cy="51" rx="2.5" ry="1.7" fill="#fff1d1"/>
         <circle cx="119" cy="75" r="4" fill="#ffd57e"/><path d="M117 76H121" stroke="#967230"/>
-      </svg></div>
-    </div>'''
+      </svg></div>'''
+    hero = f'''<section id="christmas-hero" aria-labelledby="christmas-title">
+      <div class="christmas-scene" aria-hidden="true">
+        <img class="christmas-art" src="/calendar-editor/christmas-school-2026.webp" alt="" width="1536" height="512" fetchpriority="high">
+        {tree_lights()}
+      </div>
+      <div class="christmas-snow" aria-hidden="true">{snowflakes()}</div>
+      {rudolph}
+      <div class="christmas-copy">
+        <p class="christmas-kicker">Schoolkalender</p>
+        <h1 id="christmas-title">Fijne <span>feestdagen!</span></h1>
+      </div>
+      <button type="button" id="christmas-motion" aria-label="Animaties pauzeren" aria-pressed="false" hidden>
+        <span aria-hidden="true">Animaties pauzeren</span>
+      </button>
+    </section>'''
     document = document.replace('<html lang="nl">', '<html lang="nl" class="christmas-2026">', 1)
     document = document.replace('</head>', '<style id="christmas-style">' + CSS + '</style></head>', 1)
     document = document.replace('<div class="links">', hero + '<div class="links">', 1)
-    return document.replace('</body>', decorations + '<script id="christmas-script">' + SCRIPT + '</script></body>', 1)
+    return document.replace('</body>', script_tag('christmas-script', SCRIPT) + '</body>', 1)
