@@ -110,8 +110,16 @@ def christmas_document(document, now=None):
       <div class="christmas-snow" aria-hidden="true">{snowflakes()}</div>
       {rudolph}
       <div class="christmas-copy">
-        <p class="christmas-kicker">Schoolkalender</p>
-        <h1 id="christmas-title">Fijne <span>feestdagen!</span></h1>
+        <div class="christmas-greeting">
+          <p class="christmas-kicker">Schoolkalender</p>
+          <h1 id="christmas-title">Fijne <span>feestdagen!</span></h1>
+        </div>
+        <div class="christmas-hearth" aria-hidden="true">
+          <div class="christmas-firebox">
+            <i class="christmas-flame"></i><i class="christmas-flame"></i><i class="christmas-flame"></i>
+            <i class="christmas-ember"></i><i class="christmas-ember"></i><i class="christmas-ember"></i>
+          </div>
+        </div>
       </div>
       <button type="button" id="christmas-motion" aria-label="Animaties pauzeren" aria-pressed="false" hidden>
         <span aria-hidden="true">Animaties pauzeren</span>

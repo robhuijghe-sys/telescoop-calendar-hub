@@ -59,6 +59,8 @@ with TestClient(editor.app) as client:
     assert 'class="christmas-rudolph"' in festive.text
     assert 'class="christmas-light"' in festive.text
     assert 'class="christmas-flake"' in festive.text
+    assert 'class="christmas-hearth" aria-hidden="true"' in festive.text
+    assert 'class="christmas-flame"' in festive.text
     assert 'id="christmas-script"' in festive.text
     assert 'halloween-' not in festive.text
     assert client.get('/smartschool-calendar', headers={'If-None-Match': festive.headers['etag']}).status_code == 304
