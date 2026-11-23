@@ -82,121 +82,69 @@ html.christmas-2026,
 
 .christmas-hearth {
   position: relative;
-  isolation: isolate;
   width: clamp(116px, 14vw, 190px);
-  aspect-ratio: 1.75;
   margin-top: clamp(6px, 1vw, 14px);
-  border-radius: 9px 9px 5px 5px;
-  background:
-    repeating-linear-gradient(0deg, #f0cb9138 0 1px, transparent 1px 22%),
-    repeating-linear-gradient(90deg, #e4a67c24 0 1px, transparent 1px 23%),
-    linear-gradient(135deg, #af5948, #71302c);
-  box-shadow: 0 8px 17px #894e2930;
+  filter: drop-shadow(0 6px 6px #7d48282b);
+  font-size: clamp(6px, .64vw, 9px);
 }
 
-.christmas-hearth::before, .christmas-hearth::after {
-  content: '';
+.christmas-hearth-photo { display: block; width: 100%; height: auto; }
+
+.christmas-firebox, .christmas-flame, .christmas-fire-glow {
   position: absolute;
-  inset-inline: -5%;
-  height: 9%;
-  border-radius: 3px;
-  background: linear-gradient(#ae6e45, #633a2b);
+  inset: 0;
 }
-
-.christmas-hearth::before {
-  top: -2%;
-  box-shadow: inset 0 1px #f4ce8aa6, 0 3px 4px #40211560;
-}
-
-.christmas-hearth::after { bottom: -2%; box-shadow: inset 0 1px #e5a86c8c; }
 
 .christmas-firebox {
-  position: absolute;
-  inset: 17% 19% 7%;
-  overflow: hidden;
-  border: clamp(2px, .25vw, 4px) solid #c98b58;
-  border-radius: 48% 48% 4% 4% / 53% 53% 5% 5%;
-  background: radial-gradient(ellipse at 50% 95%, #a94223 0, #401d18 48%, #22110f 81%);
-  box-shadow: 0 0 0 1px #613528, inset 0 3px 8px #24110e;
-  font-size: clamp(6px, .72vw, 10px);
+  mask-image: radial-gradient(ellipse 27% 42% at 50% 56%, #000 48%, transparent 99%);
 }
-
-.christmas-firebox::before, .christmas-firebox::after {
-  content: '';
-  position: absolute;
-  bottom: 8%;
-  z-index: 2;
-  width: 55%;
-  height: 10%;
-  border-radius: 40%;
-  background: linear-gradient(#b76b32, #6e3927 48%, #40231a);
-  box-shadow: 0 0 7px #ff992aa1;
-}
-
-.christmas-firebox::before { left: 19%; transform: rotate(-8deg); }
-.christmas-firebox::after { right: 15%; transform: rotate(9deg); }
 
 .christmas-flame {
-  position: absolute;
-  left: 24%;
-  bottom: 12%;
-  width: 29%;
-  height: 47%;
-  border-radius: 63% 37% 58% 42% / 77% 50% 50% 23%;
-  background: radial-gradient(ellipse at 47% 91%, #fff6ad 4%, #ffd657 37%, #ffad39 58%, #f36525 84%);
-  box-shadow: 0 0 10px #ff922450;
-  transform-origin: 50% 94%;
-  --lean: -16deg;
-  transform: rotate(var(--lean));
-  animation: christmas-fire-flicker 1.5s ease-in-out infinite alternate;
+  background: url('/calendar-editor/christmas-fireplace-2026.webp') center / 100% 100% no-repeat;
+  transform-origin: 51% 79%;
+  animation: christmas-fire-flicker 1.8s ease-in-out infinite alternate;
 }
 
-.christmas-flame:nth-child(2) {
-  left: 42%;
-  z-index: 1;
-  width: 27%;
-  height: 67%;
-  --lean: 4deg;
-  animation-duration: 1.25s;
-  animation-delay: -.8s;
-}
-
-.christmas-flame:nth-child(3) {
-  left: 57%;
-  width: 23%;
-  height: 44%;
-  --lean: 17deg;
-  animation-duration: 1.7s;
-  animation-delay: -.65s;
+.christmas-fire-glow {
+  background: radial-gradient(ellipse 22% 26% at 51% 70%, #ffab4a63, #ed6d201f 63%, transparent);
+  mix-blend-mode: screen;
+  animation: christmas-fire-glow 1.27s ease-in-out infinite alternate;
 }
 
 .christmas-ember {
   position: absolute;
-  left: 47%;
-  bottom: 29%;
-  z-index: 2;
+  left: 46%;
+  bottom: 28%;
   width: 2px;
   height: 2px;
   border-radius: 50%;
-  background: #ffe595;
-  box-shadow: 0 0 5px 1px #ff9d44;
-  --drift: -1em;
+  background: #ffde9b;
+  box-shadow: 0 0 4px 1px #ff9d44a6;
+  --drift: -1.5em;
   animation: christmas-ember-rise 2.9s -.6s ease-out infinite;
 }
 
 .christmas-ember:nth-last-child(2) { left: 54%; --drift: 1.2em; animation-delay: -1.6s; }
-.christmas-ember:last-child { left: 60%; --drift: .8em; animation-delay: -2.3s; }
+.christmas-ember:last-child { left: 57%; --drift: .8em; animation-delay: -2.3s; }
 
 @keyframes christmas-fire-flicker {
-  0% { transform: rotate(calc(var(--lean) - 7deg)) scale(.92, .83); opacity: .89; }
-  55% { transform: rotate(calc(var(--lean) + 4deg)) scale(1.08, .96); }
-  100% { transform: rotate(var(--lean)) scale(.93, 1.08); opacity: 1; }
+  0% { transform: skewX(-4deg) scale(.975, .91); filter: brightness(.91); }
+  36% { transform: skewX(1.3deg) scale(1.01, 1.035); filter: brightness(1.09); }
+  69% { transform: skewX(4deg) scale(.99, .96); filter: brightness(.97); }
+  100% { transform: skewX(-1.8deg) scale(1.027, 1.07); filter: brightness(1.15); }
+}
+
+@keyframes christmas-fire-glow {
+  0% { opacity: .28; }
+  39% { opacity: .63; }
+  71% { opacity: .42; }
+  100% { opacity: .85; }
 }
 
 @keyframes christmas-ember-rise {
   0%, 12% { opacity: 0; transform: translate(0, 0); }
-  25% { opacity: 1; }
-  62%, 100% { opacity: 0; transform: translate(var(--drift), -4.6em); }
+  25% { opacity: .8; }
+  62%, 100% { opacity: 0; transform: translate(var(--drift), -4.5em); }
 }
 
 #christmas-motion {
@@ -411,9 +359,8 @@ html.christmas-2026 .wrap .panel.stage { --stage-fill: #f2f8f6; }
 }
 
 @media (prefers-reduced-motion: reduce), print {
-  #christmas-motion, .christmas-snow, .christmas-rudolph, .christmas-ember { display: none; }
+  #christmas-motion, .christmas-snow, .christmas-rudolph, .christmas-firebox, .christmas-ember { display: none; }
   .christmas-light { opacity: .68; animation: none; }
-  .christmas-flame { animation: none; }
 }
 
 @media print {

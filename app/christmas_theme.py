@@ -115,10 +115,12 @@ def christmas_document(document, now=None):
           <h1 id="christmas-title">Fijne <span>feestdagen!</span></h1>
         </div>
         <div class="christmas-hearth" aria-hidden="true">
+          <img class="christmas-hearth-photo" src="/calendar-editor/christmas-fireplace-2026.webp" alt="" width="540" height="315">
           <div class="christmas-firebox">
-            <i class="christmas-flame"></i><i class="christmas-flame"></i><i class="christmas-flame"></i>
-            <i class="christmas-ember"></i><i class="christmas-ember"></i><i class="christmas-ember"></i>
+            <i class="christmas-flame"></i>
+            <i class="christmas-fire-glow"></i>
           </div>
+          <i class="christmas-ember"></i><i class="christmas-ember"></i><i class="christmas-ember"></i>
         </div>
       </div>
       <button type="button" id="christmas-motion" aria-label="Animaties pauzeren" aria-pressed="false" hidden>
