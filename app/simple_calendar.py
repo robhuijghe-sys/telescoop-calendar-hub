@@ -31,7 +31,7 @@ from app.school_theme import themed_document
 from app.halloween_theme import halloween_document
 from app.christmas_theme import christmas_document
 
-BUILD = 'railway-editor-20261123-christmas'
+BUILD = 'railway-editor-20261124-school-year-2027'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -233,6 +233,8 @@ def setup_editor():
     apply_parent_meeting_buffers()
     from app.strike_nov23_2026 import apply_strike_nov23
     apply_strike_nov23()
+    from app.school_year_2027 import prepare_school_year
+    prepare_school_year(core)
     if os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1':
         from app.display_format import check_calendar
         import sys
@@ -272,7 +274,7 @@ snapshot._top_links_html = links_html
 
 
 def page(title, body):
-    nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-vervangen">Zoeken en vervangen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a></nav>'
+    nav = '<nav><a class="btn alt" href="/">Activiteiten toevoegen</a><a class="btn alt" href="/kalender-wijzigen">Kalender wijzigen</a><a class="btn alt" href="/kalender-vervangen">Zoeken en vervangen</a><a class="btn alt" href="/kalender-links">Links wijzigen</a><a class="btn alt" href="/kalender-schooljaar/2027-2028">Schooljaar 2027–2028</a><a class="btn alt" href="/smartschool-calendar" target="_blank" rel="noopener">Bekijk kalender</a></nav>'
     return themed_document(original_page(title, nav + body).replace('</style>', FONT_CSS + EDITOR_CSS + '</style>', 1).replace('</body>', '<script src="/calendar-editor/editor.js?v=20261015-bullets" defer></script></body>'))
 
 
@@ -371,7 +373,7 @@ def calendar(request: Request):
             con.close()
             from app.day_cards import render_calendar
             import sys
-            doc = render_calendar(sys.modules[__name__], hide_past=True, visible_from=visible_from)
+            doc = render_calendar(sys.modules[__name__], hide_past=True, visible_from=visible_from, public_view=True)
             doc = without_bold(doc).replace('</style>', FONT_CSS + '.wrap,.wrap *{font-weight:400!important}' + '</style>', 1)
             doc = doc.replace('</body>', ROLLOVER_SCRIPT + '</body>')
             doc = halloween_document(doc, now)
@@ -776,3 +778,5 @@ from app.bulk_replace import register_bulk_replace
 register_bulk_replace(sys.modules[__name__])
 from app.month_focus import register_month_focus
 register_month_focus(sys.modules[__name__])
+from app.school_year_2027 import register_school_year_preview
+register_school_year_preview(sys.modules[__name__])

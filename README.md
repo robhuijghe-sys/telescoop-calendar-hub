@@ -1,5 +1,29 @@
 # Telescoop Calendar Hub
 
+## Schooljaar 2027–2028 (24 november 2026)
+
+De conceptkalender is beschikbaar via `/kalender-schooljaar/2027-2028` en de
+bestaande dageditor. De gewone `/smartschool-calendar` toont deze datums pas vanaf
+24 juni 2027, 00.00 uur Belgische tijd. Vanaf die datum wordt de zichtbare horizon
+automatisch uitgebreid tot augustus 2028; bestaande afspraken blijven behouden.
+De datum zit ook in de bestaande cache-identiteit, zodat publicatie geen herstart
+of nieuwe deployment vereist.
+
+Teamvergaderingen: dinsdag 7 september 2027 en vervolgens telkens na vier
+schoolweken. Volledige vakantieweken tellen niet mee; een week met één feestdag
+blijft een schoolweek. De onderzoeksreeksen lopen op 12/19/26 november 2027 en
+4/11/18 februari 2028 (één namiddag en twee keer één uur). Vragen verzamelen start
+op maandag 4 oktober en 20 december; doorgeven uiterlijk 8 oktober en 24 december,
+vier schoolweken vóór de start. Het agendapunt staat op de voorafgaande
+teamvergadering van respectievelijk 7 september en 7 december.
+
+`app/school_year_2027.py` voegt het plan eenmalig en transactioneel toe, met een
+SQLite-back-up en auditlog. Een herstart overschrijft geen latere bewerkingen.
+De officiële Vlaamse schoolvakanties zijn de bron; schoolspecifieke vrije dagen
+en pedagogische studiedagen moeten later worden toegevoegd wanneer die vastliggen.
+`tests/school_year_2027_smoke.py` controleert de berekende datums, vakantie-onderbrekingen,
+conceptweergave, de publicatiegrens met een warme cache en behoud van bestaande data.
+
 ## Opsommingstekens (15 oktober 2026)
 
 Elk tekstvak heeft een knop **• Opsomming**. Selecteer regels om ze in een lijst te zetten of plaats de cursor in een regel; Enter maakt binnen een lijst een nieuw punt. Bestaande regels die beginnen met `* ` of `• ` verschijnen als echte opsommingen, ook in de bewerkingsvakken. Agendapunten blijven bij hun vergadering. De opslag bewaart lijstpunten als afzonderlijke regels met `• `, zodat de bestaande sortering, versiecontrole, tekstvervanging en het auditlog blijven werken. Links en opmaak blijven behouden. De weergavewijziging vereist geen migratie van de kalendergegevens.

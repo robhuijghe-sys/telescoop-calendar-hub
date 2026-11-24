@@ -266,7 +266,7 @@ def sorted_absences(plain, items):
 
 
 
-def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=None, editor_data=False, visible_from=None):
+def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=None, editor_data=False, visible_from=None, public_view=False):
     selected = set(dates) if dates is not None else None
     owned = connection is None
     con = connection if connection is not None else s.core.db()
@@ -292,9 +292,13 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
     today = s.datetime.now(s.core.TZ).date()
     visible_from = visible_from if visible_from is not None else s.calendar_start_date()
     school_end = (today.year if today.month < 8 else today.year+1, 8)
+    if public_view:
+        from app.school_year_2027 import public_calendar_end, public_date_visible
+        school_end = public_calendar_end(today, settings, school_end)
     months = {}
     for ds,items in sorted(days.items()):
         day = s.datetime.fromisoformat(ds).date()
+        if public_view and not public_date_visible(day, today, settings):continue
         if selected is not None and ds not in selected:continue
         if ds in hidden or (hide_past and day<visible_from) or (selected is None and ((day.year,day.month)<(today.year,today.month) or (day.year,day.month)>school_end)):
             continue

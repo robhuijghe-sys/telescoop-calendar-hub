@@ -34,3 +34,5 @@ RUN python tests/halloween_smoke.py
 
 RUN python tests/christmas_smoke.py
 
+RUN python tests/school_year_2027_smoke.py
+
