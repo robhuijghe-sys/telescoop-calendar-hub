@@ -21,7 +21,8 @@ from fastapi.testclient import TestClient
 from bs4 import BeautifulSoup
 import app.simple_calendar as editor
 from app.school_year_2027 import (build_plan, meeting_dates, school_day, school_week,
-                                  seed_school_year, planned_lines, MARKER, PUBLICATION_KEY)
+                                  seed_school_year, planned_lines, workgroup_plan, seed_workgroups,
+                                  MARKER, PUBLICATION_KEY)
 from app.display_format import normalize_text
 
 class Clock(datetime):
@@ -48,6 +49,23 @@ for first, last in zip(meeting_dates(), meeting_dates()[1:]):
     assert sum(school_week(day) for day in tuesdays) == 4
 assert not school_day(date(2027, 11, 5)) and not school_day(date(2028, 2, 29))
 assert school_week(date(2028, 4, 18))  # Paasmaandag does not erase the teaching week.
+groups = workgroup_plan(plan)
+assert groups['maths'] == ['2027-09-21', '2027-10-19', '2027-11-23', '2027-12-21',
+    '2028-02-01', '2028-03-07', '2028-04-18', '2028-05-16', '2028-06-13']
+assert len(groups['mondays']) == 34
+assert groups['mondays'][:2] == [{'date':'2027-09-06','topic':'WO'}, {'date':'2027-09-13','topic':'kleuters'}]
+assert not any(group['date'] in ('2027-11-01','2027-12-27','2028-01-03','2028-02-28',
+                               '2028-04-03','2028-04-10','2028-04-17','2028-05-01','2028-06-05')
+               for group in groups['mondays'])
+assert all(school_day(date.fromisoformat(group['date'])) and date.fromisoformat(group['date']).weekday() == 0
+           for group in groups['mondays'])
+for i, value in enumerate(groups['maths']):
+    meeting = date.fromisoformat(plan['meetings'][i])
+    day = date.fromisoformat(value)
+    assert sum(school_week(meeting + timedelta(weeks=j)) for j in range(1,(day-meeting).days//7+1)) == 2
+for first, last in zip(groups['maths'], groups['maths'][1:]):
+    a,b = date.fromisoformat(first),date.fromisoformat(last)
+    assert sum(school_week(a + timedelta(weeks=j)) for j in range(1,(b-a).days//7+1)) == 4
 
 with TestClient(editor.app) as client:
     con = editor.core.db()
@@ -57,6 +75,15 @@ with TestClient(editor.app) as client:
     assert [tuple(row) for row in con.execute("SELECT * FROM editor_lines WHERE id<=2 ORDER BY id")] == before
     count = con.execute("SELECT COUNT(*) FROM editor_lines").fetchone()[0]
     assert count == 38
+    # A follow-up request adds workgroups once and retains the already prepared
+    # research plan. Later restarts never re-create removed or edited groups.
+    assert seed_workgroups(con, editor.core)
+    assert not seed_workgroups(con, editor.core)
+    count = con.execute("SELECT COUNT(*) FROM editor_lines").fetchone()[0]
+    assert count == 81
+    workgroup_rows = list(con.execute("SELECT date_local,title FROM editor_lines WHERE title LIKE '%Vakgroep%'"))
+    assert len(workgroup_rows) == 43
+    assert all(row['title'].startswith('16u45 - 17u30: Vakgroep ') for row in workgroup_rows)
     assert con.execute("SELECT value FROM settings WHERE key=?", (MARKER,)).fetchone()
     assert json.loads(con.execute("SELECT value FROM settings WHERE key=?", (PUBLICATION_KEY,)).fetchone()[0])["publish_on"] == "2027-06-24"
     con.close()
@@ -67,6 +94,7 @@ with TestClient(editor.app) as client:
     assert preview.status_code == 200 and "Concept" in preview.text
     assert "12 november 2027" in preview.text and "24 juni 2027" in preview.text
     assert "Bestaande afspraak van volgend schooljaar" in preview.text
+    assert '16u45–17u30' in preview.text and 'Vakgroep wiskunde' in preview.text
     assert client.get("/kalender-dag/2027-11-12").status_code == 200
     public = client.get("/smartschool-calendar")
     assert "Bestaande afspraak van dit schooljaar" in public.text
@@ -97,6 +125,7 @@ with TestClient(editor.app) as client:
     con.execute("UPDATE editor_lines SET deleted=1,version=version+1 WHERE id=?", (ident,))
     con.commit()
     assert not seed_school_year(con, editor.core)
+    assert not seed_workgroups(con, editor.core)
     assert con.execute("SELECT deleted FROM editor_lines WHERE id=?", (ident,)).fetchone()[0] == 1
     assert con.execute("SELECT COUNT(*) FROM editor_lines").fetchone()[0] == count
     con.close()

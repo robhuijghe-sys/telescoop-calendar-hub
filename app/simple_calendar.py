@@ -31,7 +31,7 @@ from app.school_theme import themed_document
 from app.halloween_theme import halloween_document
 from app.christmas_theme import christmas_document
 
-BUILD = 'railway-editor-20261124-school-year-2027'
+BUILD = 'railway-editor-20261124-school-year-workgroups'
 REFRESH_SECONDS = 7200
 SMARTSCHOOL_HOME = 'https://telescoop-sgr8.smartschool.be/'
 esc = html.escape
@@ -233,8 +233,9 @@ def setup_editor():
     apply_parent_meeting_buffers()
     from app.strike_nov23_2026 import apply_strike_nov23
     apply_strike_nov23()
-    from app.school_year_2027 import prepare_school_year
+    from app.school_year_2027 import prepare_school_year, prepare_workgroups
     prepare_school_year(core)
+    prepare_workgroups(core)
     if os.getenv('CALENDAR_FORMAT_AUTOCHECK', '1') == '1':
         from app.display_format import check_calendar
         import sys

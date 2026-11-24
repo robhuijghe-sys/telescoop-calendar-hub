@@ -17,6 +17,13 @@ op maandag 4 oktober en 20 december; doorgeven uiterlijk 8 oktober en 24 decembe
 vier schoolweken vóór de start. Het agendapunt staat op de voorafgaande
 teamvergadering van respectievelijk 7 september en 7 december.
 
+Vakgroep wiskunde valt op dinsdag, twee schoolweken na elke teamvergadering en
+daardoor eveneens telkens na vier schoolweken. Op beschikbare maandagen wisselen
+WO en kleuters af, te beginnen met WO op 6 september. Vakantie- en vrije maandagen
+worden overgeslagen zonder de afwisseling te veranderen. Alle vakgroepen lopen
+van 16.45 tot 17.30 uur; de teamvergaderingen blijven 15.45–16.30 uur. Een aparte
+eenmalige migratie voegt deze vakgroepen toe en laat het eerder gemaakte plan intact.
+
 `app/school_year_2027.py` voegt het plan eenmalig en transactioneel toe, met een
 SQLite-back-up en auditlog. Een herstart overschrijft geen latere bewerkingen.
 De officiële Vlaamse schoolvakanties zijn de bron; schoolspecifieke vrije dagen

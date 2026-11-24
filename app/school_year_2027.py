@@ -19,6 +19,7 @@ LAST_SCHOOL_DAY = date(2028, 6, 30)
 PUBLISH_ON = date(2027, 6, 24)
 PUBLICATION_KEY = "calendar_publication_2027_2028"
 MARKER = "school_calendar_2027_2028_prepared_v1"
+WORKGROUP_MARKER = "school_calendar_2027_2028_workgroups_v1"
 SOURCE = "https://www.vlaanderen.be/onderwijs-en-vorming/wat-mag-en-moet-op-school/schoolvakanties-vrije-dagen-en-afwezigheden/schoolvakanties"
 
 HOLIDAYS = (
@@ -92,6 +93,28 @@ def build_plan():
             "publish_on": PUBLISH_ON.isoformat(), "timezone": "Europe/Brussels",
             "holiday_source": SOURCE, "meetings": [d.isoformat() for d in meetings],
             "cycles": cycles}
+
+
+def workgroup_plan(plan):
+    maths = []
+    for value in plan["meetings"]:
+        try:
+            day = shift_school_weeks(date.fromisoformat(value), 2)
+        except ValueError:
+            # Two teaching weeks after the final June meeting is next year.
+            continue
+        if day <= LAST_SCHOOL_DAY:
+            if not school_day(day) or day.weekday() != 1:
+                raise ValueError("A maths workgroup falls on a non-school Tuesday")
+            maths.append(day.isoformat())
+    mondays = []
+    day = START + timedelta(days=(-START.weekday()) % 7)
+    while day <= LAST_SCHOOL_DAY:
+        if school_day(day):
+            topic = "WO" if len(mondays) % 2 == 0 else "kleuters"
+            mondays.append({"date": day.isoformat(), "topic": topic})
+        day += timedelta(weeks=1)
+    return {"time": "16u45 - 17u30", "maths": maths, "mondays": mondays}
 
 
 def short_date(value):
@@ -195,6 +218,66 @@ def prepare_school_year(core):
         con.close()
 
 
+def seed_workgroups(con, core):
+    """Append workgroups without reapplying or overwriting the first year plan."""
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        if con.execute("SELECT 1 FROM settings WHERE key=?", (WORKGROUP_MARKER,)).fetchone():
+            con.rollback()
+            return False
+        stored = con.execute("SELECT value FROM settings WHERE key=?", (PUBLICATION_KEY,)).fetchone()
+        if not stored:
+            raise RuntimeError("Prepare the school year before adding workgroups")
+        plan = json.loads(stored[0])
+        groups = workgroup_plan(plan)
+        additions = [(day, groups['time'] + ": Vakgroep wiskunde") for day in groups['maths']]
+        additions += [(group['date'], groups['time'] + ": Vakgroep " + group['topic'])
+                      for group in groups['mondays']]
+        hidden = {row[0] for row in con.execute("SELECT date_local FROM editor_days WHERE hidden=1")}
+        if any(day in hidden for day, _ in additions):
+            raise RuntimeError("A planned workgroup date is explicitly hidden; nothing was changed")
+        ids = []
+        for day, title in additions:
+            if con.execute("SELECT 1 FROM editor_lines WHERE date_local=? AND title=? AND deleted=0",
+                           (day, title)).fetchone():
+                continue
+            ids.append(con.execute("INSERT INTO editor_lines(date_local,body_html,title,activity_type,whole_day) "
+                                   "VALUES(?,?,?,'personeel',0)",
+                                   (day, html.escape(title), title)).lastrowid)
+        plan['workgroups'] = groups
+        con.execute("UPDATE settings SET value=? WHERE key=?",
+                    (json.dumps(plan, ensure_ascii=False), PUBLICATION_KEY))
+        payload = json.dumps({"workgroups": groups, "added_line_ids": ids}, ensure_ascii=False)
+        con.execute("INSERT INTO audit_log(actor_email,action,payload,created_at) VALUES(?,?,?,?)",
+                    ("school-calendar", "calendar.school_year_workgroups_prepared", payload, core.now_iso()))
+        con.execute("INSERT INTO settings(key,value) VALUES(?,?)", (WORKGROUP_MARKER, payload))
+        con.commit()
+        return True
+    except Exception:
+        con.rollback()
+        raise
+
+
+def prepare_workgroups(core):
+    if not Path(core.DB_PATH).resolve().is_relative_to(Path("/data")):
+        return
+    con = core.db()
+    try:
+        if con.execute("SELECT 1 FROM settings WHERE key=?", (WORKGROUP_MARKER,)).fetchone():
+            return
+        backup_path = Path(str(core.DB_PATH) + ".before-workgroups-2027-2028.bak")
+        if not backup_path.exists():
+            backup = sqlite3.connect(str(backup_path))
+            try:
+                con.backup(backup)
+            finally:
+                backup.close()
+        if seed_workgroups(con, core):
+            print("SCHOOL_YEAR_2027_2028_WORKGROUPS_PREPARED", flush=True)
+    finally:
+        con.close()
+
+
 def publication_plans(settings):
     plans = []
     for key, value in settings.items():
@@ -246,13 +329,19 @@ def register_school_year_preview(s):
                 "<p>Teamvergadering op dinsdag, telkens na vier schoolweken. Volledige vakantieweken tellen niet mee. "
                 "Ook de deadlines voor onderzoeksvragen liggen vier schoolweken vóór de start. "
                 "Per onderzoeksreeks: één namiddag en twee keer één uur.</p>"
-                "<div style=\"overflow-x:auto\"><table><thead><tr><th>Cyclus</th><th>Vragen verzamelen</th>"
+                "<div style=\"overflow-x:auto\"><table class=\"year-summary\"><thead><tr><th>Cyclus</th><th>Vragen verzamelen</th>"
                 "<th>Vragen doorgeven</th><th>Onderzoeksmomenten</th></tr></thead><tbody>")
         for cycle in plan["cycles"]:
             body += (f"<tr><td>{cycle['number']}</td><td>{short_date(cycle['collect'])}</td>"
                      f"<td>{short_date(cycle['deadline'])}</td><td>"
                      + "<br>".join(short_date(day) for day in cycle["sessions"]) + "</td></tr>")
-        body += ("</tbody></table></div><p><a href=\"" + SOURCE + "\" target=\"_blank\" rel=\"noopener noreferrer\">"
+        body += "</tbody></table></div>"
+        if plan.get('workgroups'):
+            body += ("<p><strong>Vakgroepen: 16u45–17u30.</strong> Wiskunde op dinsdag, twee schoolweken na "
+                     "elke teamvergadering. Op de beschikbare maandagen wisselen WO en kleuters elkaar af, "
+                     "met WO als eerste. Op vrije maandagen is er geen vakgroep; de afwisseling loopt verder "
+                     "op de volgende beschikbare maandag.</p>")
+        body += ("<p><a href=\"" + SOURCE + "\" target=\"_blank\" rel=\"noopener noreferrer\">"
                  "Officiële schoolvakanties</a></p></section><div class=\"calendar-preview\">")
         month = None
         for day, card in sorted(cards.items()):
@@ -270,6 +359,11 @@ def register_school_year_preview(s):
             heading.append(edit)
             body += str(soup)
         body += ("</section>" if month is not None else "") + "</div>"
+        summary_css = (".year-summary{width:100%;min-width:560px;border-collapse:collapse;font-size:14px}"
+                       ".year-summary th,.year-summary td{padding:12px 10px;text-align:left;vertical-align:top;"
+                       "border-bottom:1px solid #dce2ee;line-height:1.45}"
+                       ".year-summary th{font-weight:700;color:#232563}"
+                       ".calendar-preview .month-head .season{background:none;border:0;padding:0}")
         document = s.page("Schooljaar 2027–2028", body).replace(
-            "</style>", scoped_css(".calendar-preview") + "</style>", 1)
+            "</style>", scoped_css(".calendar-preview") + summary_css + "</style>", 1)
         return HTMLResponse(document)
