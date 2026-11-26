@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 from fastapi.testclient import TestClient
 from app.simple_calendar import app,rows_all,setup_editor
 from app.calendar_dynamic import MONTH_PALETTES
+from app.day_cards import PANEL_LABELS
 import app.main as core
 
 day=(datetime.now(core.TZ).date()+timedelta(days=1)).isoformat()
@@ -148,6 +149,68 @@ with TestClient(app) as c:
     assert not card.select('b,strong')
     assert not any('Ananda'==span.get_text() or 'Guler'==span.get_text()
                    for span in card.select('.replacement-person'))
+
+    swim_day = (datetime.now(core.TZ).date() + timedelta(days=4)).isoformat()
+    l1_lessons = [('2de lesuur', 'l1-listlg2'), ('3de lesuur', 'l1-muvo')]
+    l2_lessons = [('2de lesuur', 'l2-muvo'), ('3de lesuur', 'l2-ned')]
+
+    def swim_card():
+        return document(c).select_one(f'[data-calendar-date="{swim_day}"]')
+
+    def lesson_rows(card):
+        lessons = []
+        for row in card.select('.calendar-row'):
+            body = ''.join(row.select_one('.item-text').stripped_strings)
+            key = (row.select_one('.moment').get_text(strip=True), ''.join(body.lower().split()))
+            if key in l1_lessons + l2_lessons:
+                lessons.append(key)
+        return lessons
+
+    def add_swim_lines(lines):
+        result = c.post('/kalender-toevoegen', data={'date': swim_day, 'lines': lines}, follow_redirects=False)
+        assert result.status_code == 303, result.text
+
+    def swim_source(fragment):
+        return next(r for r in rows_all() if r['date'] == swim_day and fragment in r['title'])
+
+    def remove_swim_source(fragment):
+        source = swim_source(fragment)
+        result = c.post('/kalender-verwijderen/' + source['id'], data={'version': source['version']}, follow_redirects=False)
+        assert result.status_code == 303, result.text
+
+    add_swim_lines('L1 - zwemmen\nL3 - zwemmen i.p.v. L1\nGR3 - zwemmen i.p.v. L2')
+    assert lesson_rows(swim_card()) == []
+    add_swim_lines('GR3 - zwemmen i.p.v. L1')
+    card = swim_card()
+    assert lesson_rows(card) == l1_lessons
+    swap = next(row for row in card.select('.calendar-row') if 'GR3 - zwemmen i.p.v. L1' in row.get_text())
+    following = [sibling for sibling in swap.find_next_siblings('div', class_='calendar-row')][:2]
+    assert [node.select_one('.moment').get_text(strip=True) for node in following] == ['2de lesuur', '3de lesuur']
+
+    # Both source types can carry the same swap, and an explicitly entered lesson wins.
+    event = c.post('/public/create', data={'date': swim_day, 'title': 'Zwemmen GR3 ipv L1', 'category': 'algemeen'})
+    assert event.status_code == 200
+    add_swim_lines('3de lesuur: L1 - MUVO')
+    assert sorted(lesson_rows(swim_card())) == sorted(l1_lessons)
+
+    editor = BeautifulSoup(c.get('/kalender-dag/' + swim_day).text, 'html.parser')
+    fields = {'body_' + key: editor.select_one(f'textarea[name=body_{key}]').get_text() for key in PANEL_LABELS}
+    assert 'list' not in ''.join(fields.values()).lower()
+    fields.update(version=editor.select_one('input[name=version]')['value'], sections_present='1',
+                  body_practical='Boeken klaarleggen')
+    assert c.post('/kalender-dag/' + swim_day, data=fields, follow_redirects=False).status_code == 303
+    remove_swim_source('GR3 - zwemmen i.p.v. L1')
+    assert sorted(lesson_rows(swim_card())) == sorted(l1_lessons)
+
+    # Changing the sole remaining swap drops its automatic lesson while retaining the manual MUVO.
+    event = next(r for r in rows_all() if r['date'] == swim_day and r['id'].startswith('event:'))
+    result = c.post('/kalender-regel/' + event['id'], data={
+        'version': event['version'], 'date': swim_day, 'title': 'L3 - zwemmen i.p.v. L2',
+    }, follow_redirects=False)
+    assert result.status_code == 303, result.text
+    assert sorted(lesson_rows(swim_card())) == sorted(l2_lessons + [l1_lessons[1]])
+    remove_swim_source('L3 - zwemmen i.p.v. L2')
+    assert lesson_rows(swim_card()) == [l1_lessons[1]]
 
 print('TCH_DAY_CARDS_SMOKE_TEST=PASS')
 temp.cleanup()

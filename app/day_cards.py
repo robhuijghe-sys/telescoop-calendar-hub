@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, NavigableString
 
 from app.calendar_dynamic import MONTH_NAMES, MONTH_PALETTES, SEASONS, _event_line, category_for_row
 from app.day_order import ABSENCE, AGENDA, REPLACEMENT, is_meeting, is_replacement, meeting_time_key, ordered_fragments
+from app.display_format import normalize_text
 from app.rich_editor import reshape_html, bullet_body, bullet_lists
 
 
@@ -20,6 +21,14 @@ PRACTICAL = re.compile(r'^(?:Secretariaat\b|[^\w]*Check maximumfactuur|[^\w]*Eva
 MOMENT = re.compile(r'^((?:\d{1,2}u\d{2})(?:\s*[-–]\s*\d{1,2}u\d{2})?|VM|NM|hele dag|DAG|\d+(?:ste|de)(?:\s+en\s+\d+(?:ste|de))?\s+lesuur)\s*:\s*', re.I)
 WEEKDAYS = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag']
 CLASS_LABEL = re.compile(r'(?<!\w)(?:GR[1-3]|(?:L[1-6])+|(?:K[O0-3])+|[1-6](?:ste|de|e)\s+leerjaar)(?!\w)', re.I)
+SWIM_SWAP = re.compile(
+    r'(GR3|L3)\s*[-–—:]\s*zwe?mmen\s+\(?\s*(?:i\.?\s*p\.?\s*v\.?|in plaats van)\s+'
+    r'(L1|L2)\s*\)?(?:\s+\(zwembad[^()]*\))?\s*\.?', re.I)
+SWIM_LESSONS = {
+    ('GR3', 'L1'): ('2de lesuur: L1 - LIST LG2', '3de lesuur: L1 - MUVO'),
+    ('L3', 'L2'): ('2de lesuur: L2 - MUVO', '3de lesuur: L2 - NED'),
+}
+
 
 CSS = '''
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#000000;font-size:14px;line-height:1.5;-webkit-text-size-adjust:100%}.wrap{max-width:1100px;margin:auto;padding:20px 12px 28px}.logo{display:block;width:100%;max-width:210px;height:auto;margin:0 auto 10px}.links{margin-bottom:20px}.quick{margin:0;font-size:12px;line-height:1.6}.quick a{color:#232563;text-decoration:none;border-bottom:1px solid #d8e1c9}.month-card{margin:0 0 26px;background:#fff}.month-head{padding:10px 16px;color:white;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.month-title{font-size:22px;line-height:1.3}.season{font-size:11px;letter-spacing:.08em}.focus{padding:8px 2px 13px;color:#000000;font-size:13px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}.calendar-day{margin:0 0 23px}.day-header{color:white;border-radius:10px;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.day-header h2{font-size:14px;line-height:1.3;margin:0;font-weight:400}.day-header>span{font-size:12px;white-space:nowrap}.day-columns{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}.day-main,.day-stages{min-width:0}.panel{color:#000000;line-height:1.15;border:1px solid #dce2ee;border-radius:12px;background:#fff;padding:14px 15px;margin-bottom:12px;min-width:0}.panel h3{font-size:15px;line-height:1.15;margin:0 0 8px;font-weight:700;color:#232563}.panel.activities{border-color:transparent;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(115deg,#C5D91D 0%,#EEE926 42%,#DFB623 76%,#CBDB24 100%) border-box}.panel.activities>h3{color:#9C8200;background-image:linear-gradient(100deg,#9C8200 0,#A6A500 4em,#A87F00 9em);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}.panel.absence{border-color:#FF2800}.absence h3{color:#FF2800}.panel.stage{border-color:transparent;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(115deg,#067B9C 0%,#09ABE6 28%,#25E4DE 49%,#079FCB 72%,#075F7A 100%) border-box}.panel.stage>h3{color:#08749B;background-image:linear-gradient(100deg,#086B98 0,#007F89 1.5em,#075D85 3.5em);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}.panel.practical{border-color:#68991C}.practical h3{color:#68991C}.panel.meeting{border-color:transparent;background:linear-gradient(#fff,#fff) padding-box,linear-gradient(115deg,#A50092 0%,#DE00C4 25%,#ED60E1 47%,#CA08BC 68%,#94008F 100%) border-box;background-size:100% 100%,240% 240%;background-position:0 0,0% 50%;animation:stage-border-flow 24s ease-in-out infinite alternate}.panel.meeting>h3{color:#B000A0;background-image:linear-gradient(100deg,#A30091 0,#CF00B8 3em,#B82FCC 7em,#99008E 11em);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}.calendar-row{display:grid;grid-template-columns:128px minmax(0,1fr);gap:10px;padding:4px 0;align-items:baseline}.calendar-row:first-child{padding-top:0}.calendar-row:last-child{padding-bottom:1px}.item-text{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap;font-size:14px;line-height:1.15}.moment{white-space:nowrap;font-size:12px;line-height:1.15;color:#000000}.absence-text,.training-text{color:#000000}.stage-item{margin:0 0 8px;color:#000000;font-size:14px;line-height:1.15;overflow-wrap:anywhere}.stage-item:last-child{margin-bottom:0}.stage-name{display:block;margin-bottom:0}.stage-detail{display:block;font-size:13px;line-height:1.15}.stage-note{font-size:13px;line-height:1.15;white-space:pre-wrap}.meeting-group,.meeting-group *{color:#000000!important;font-weight:400!important}.overleg-group,.overleg-group *{color:#000000!important;font-weight:400!important}.meeting-group+.meeting-group,.overleg-group+.meeting-group,.meeting-group+.overleg-group{margin-top:8px}.muted{color:#000000}.empty-day{padding:8px 15px}.wrap,.wrap *{font-weight:400!important}.wrap .month-title,.wrap .day-header h2,.wrap .panel h3,.wrap .activities .class-label,.wrap .activities .class-label *{font-weight:700!important}.panel,.panel *{line-height:1.15}.panel p,.panel div{margin-block-start:0}.item-text p,.item-text div{margin:0}.item-text,.item-text *,.stage-item,.stage-item *,.stage-note,.stage-note *{color:#000000!important}a:focus-visible{outline:3px solid #f7bf23;outline-offset:3px}
@@ -266,6 +275,37 @@ def sorted_absences(plain, items):
 
 
 
+def add_swim_lessons(buckets):
+    """Show the lessons directly below their current swap on this day."""
+    swaps = []
+    for key in ('absence', 'activities'):
+        for index, item in enumerate(buckets[key]):
+            if 'zw' not in item['text'].casefold():
+                continue
+            title = MOMENT.sub('', normalize_text(item['text']), count=1)
+            match = SWIM_SWAP.fullmatch(title.upper())
+            if match and match.groups() in SWIM_LESSONS:
+                swaps.append((key, index, SWIM_LESSONS[match.groups()]))
+    if not swaps:
+        return
+
+    def lesson_key(title):
+        return re.sub(r'\W+', '', normalize_text(title)).casefold()
+
+    present = {lesson_key(item['text']) for items in buckets.values() for item in items}
+    inserts = []
+    for key, index, lessons in swaps:
+        additions = []
+        for lesson in lessons:
+            identity = lesson_key(lesson)
+            if identity not in present:
+                additions.append(dict(rich=lesson, text=lesson, custom=False, whole_day=False))
+                present.add(identity)
+        inserts.append((key, index + 1, additions))
+    for key, index, additions in reversed(inserts):
+        buckets[key][index:index] = additions
+
+
 def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=None, editor_data=False, visible_from=None, public_view=False):
     selected = set(dates) if dates is not None else None
     owned = connection is None
@@ -307,7 +347,7 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
     def panel_for(item, meeting=False, previous=None):
         if item['type'] in TYPE_PANELS:
             return TYPE_PANELS[item['type']]
-        text = s.plain(item['rich'])
+        text = item['text']
         if meeting or (AGENDA.match(text) and previous=='meeting'):
             return 'meeting'
         if re.search(r'\bstage(?:s|stagiair)?\b|\bstagiair',text,re.I):
@@ -335,7 +375,7 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
         return '<span data-custom-format="true">'+rich+'</span>' if item['custom'] else rich
 
     def moment_body(item):
-        original = s.plain(item['rich'])
+        original = item['text']
         match = MOMENT.match(original)
         label,body = (match[1],original[match.end():]) if match else ('',original)
         if label.lower() in ('hele dag','dag') or (item['whole_day'] and not AGENDA.match(original)):
@@ -356,7 +396,7 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
         return s.clean_html(reshape_html(rich,text))
 
     def row(item,key):
-        original=s.plain(item['rich'])
+        original=item['text']
         rich=content(item,key)
         label,body,match=moment_body(item)
         extra = ' absence-text' if key=='absence' and ABSENCE.search(original) else (' training-text' if key=='absence' and 'nascholing' in original.lower() else '')
@@ -435,12 +475,12 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
                     # Sort a stored activity as one unit, then draw its lines.
                     # This keeps its heading before instructions and times.
                     for line_index,rich in enumerate(s.split_lines(''.join(str(child) for child in node.contents))):
-                        item=dict(source,rich=rich,description=source['event'] and line_index>0)
+                        item=dict(source,rich=rich,text=s.plain(rich),description=source['event'] and line_index>0)
                         if item['description']:item['whole_day']=0
                         key=panel_for(item,bool(meeting),previous)
                         item['group']=group_index
                         item['meeting_class']=meeting['class'][0] if meeting else 'meeting-group'
-                        if key=='meeting' and AGENDA.match(s.plain(item['rich'])) and buckets['meeting']:
+                        if key=='meeting' and AGENDA.match(item['text']) and buckets['meeting']:
                             item['group']=buckets['meeting'][-1]['group']
                             item['meeting_class']=buckets['meeting'][-1]['meeting_class']
                         buckets[key].append(item);previous=key
@@ -452,6 +492,8 @@ def render_calendar(s, hide_past=True, dates=None, cards_only=False, connection=
                 activities.insert(slot,activities.pop(heading))
             if editor_data:
                 editing[ds]={key:[dict(item,rich=editable(item,key)) for item in bucket] for key,bucket in buckets.items()}
+            # Derived rows belong on the card, outside the editable source records.
+            add_swim_lessons(buckets)
             day=s.datetime.fromisoformat(ds)
             label=WEEKDAYS[day.weekday()]+' '+str(day.day)+' '+MONTH_NAMES[month].lower()
             current = ' is-today' if day.date() == today else ''
